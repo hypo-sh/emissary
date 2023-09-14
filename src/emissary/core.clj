@@ -8,19 +8,19 @@
             [buddy.sign.jwk :as jwk]
             [buddy.sign.jwt :as jwt]))
 
-(defn- request-idp-openid-configuration-req
-  [openid-configuration-endpoint]
-  (client/get openid-configuration-endpoint {:as :json}))
+(defn- request-idp-openid-config-req
+  [openid-config-endpoint]
+  (client/get openid-config-endpoint {:as :json}))
 
-(defn- request-idp-openid-configuration
+(defn- request-idp-openid-config
   [config-endpoint]
   (-> config-endpoint
-      request-idp-openid-configuration-req
+      request-idp-openid-config-req
       (get-in [:body])))
 
 (defn- get-cert-uri
-  [configuration]
-  (get-in configuration [:jwks_uri]))
+  [config]
+  (get-in config [:jwks_uri]))
 
 (defn- request-idp-jwks-req
   [jwks-endpoint]
@@ -34,10 +34,10 @@
 
 (defn- request-idp-settings
   [openid-config-url]
-  (let [openid-configuration (request-idp-openid-configuration openid-config-url)
-        cert-uri (get-cert-uri openid-configuration)
+  (let [openid-config (request-idp-openid-config openid-config-url)
+        cert-uri (get-cert-uri openid-config)
         jwks (request-idp-jwks cert-uri)]
-    {:config openid-configuration
+    {:config openid-config
      :jwks jwks}))
 
 (defn gen-client-config
@@ -66,20 +66,6 @@
 (defn- find-key [kid keys]
   (first (filter (fn [v] (= (:kid v) kid)) keys)))
 
-(defn- get-keys [config]
-  (get-in config [:jwks :keys]))
-
-(defn- unsign-jwt [oidc-config jwt iss aud]
-  (let [ks (get-keys oidc-config)
-        {:keys [alg _typ kid]} (jwt/decode-header jwt)
-        key (find-key kid ks)
-        pubkey (jwk/public-key key)]
-    ;; TODO: Confirm that this is all the validation required by spec
-    ;; link to spec in docstring
-    (jwt/unsign jwt pubkey {:alg alg
-                            :iss iss
-                            :aud aud})))
-
 (defn- request-id-token-req
   [token-uri code redirect-uri client-id]
   (client/post token-uri
@@ -91,8 +77,8 @@
                 :headers {"Content-Type" "application/x-www-form-urlencoded"}
                 :as :json}))
 
-(defn- get-id-token-uri [configuration]
-  (get-in configuration [:idp-settings :config :token_endpoint]))
+(defn- get-id-token-uri [config]
+  (get-in config [:idp-settings :config :token_endpoint]))
 
 (defn- request-id-token
   [{:keys [redirect-uri code client-id] :as config}]
@@ -100,11 +86,24 @@
         result (request-id-token-req token-uri code redirect-uri client-id)]
     (get-in result [:body])))
 
+(defn- get-keys [config]
+  (get-in config [:idp-settings :jwks :keys]))
+
+(defn- unsign-jwt [config jwt iss aud]
+  (let [ks (get-keys config)
+        {:keys [alg _typ kid]} (jwt/decode-header jwt)
+        key (find-key kid ks)
+        pubkey (jwk/public-key key)]
+    ;; TODO: Confirm that this is all the validation required by spec
+    (jwt/unsign jwt pubkey {:alg alg
+                            :iss iss
+                            :aud aud})))
+
 (defn unsign-token!
   "Validate id token. If passes, return clojure object representing id jwt."
-  [{:keys [idp-settings iss aud trusted-audiences]}
+  [{:keys [iss aud trusted-audiences] :as config}
    id_token]
-  (let [unsigned-jwt (unsign-jwt idp-settings id_token iss aud)
+  (let [unsigned-jwt (unsign-jwt config id_token iss aud)
         jwt-aud (:aud unsigned-jwt)
         jwt-aud
         (into #{}
@@ -116,23 +115,18 @@
             "Untrusted audience returned in :aud claim")
     unsigned-jwt))
 
-;; TODO: test with-result, which updates the session object
+;; TODO: test save-session!, which updates the session object
 (defn make-handle-oidc
+  "Constructs a ring handler that acts as an OIDC redirect URI."
   [config save-session!]
   (binding [*assert* true]
     (fn oauth-callback [req]
       ;; NOTE: Requires keywordized query-params object
-      ;; TODO: Handle errors here
       (let [code (get-in req [:query-params "code"])
             _session_state (get-in req [:query-params "session_state"])
             {:keys [access_token
-                    not-before-policy
-                    refresh_expires_in
                     refresh_token
-                    session_state
-                    scope
-                    token_type
-                    id_token] :as ks}
+                    id_token]}
             (request-id-token (merge config {:code code}))]
         (unsign-token! config id_token)
         ;; TODO: Test that access_token is validated
@@ -146,19 +140,25 @@
               (assoc-in [:session :emissary/session-id] emissary-session-id)))))))
 
 (defn- get-end-session-endpoint
-  [configuration]
-  (get-in configuration [:idp-settings :config :end_session_endpoint]))
+  [config]
+  (get-in config [:idp-settings :config :end_session_endpoint]))
+
+(defn- get-post-login-redirect-uri
+  [config]
+  (get-in config [:post-logout-redirect-uri]))
 
 (defn make-handle-logout
+  "Construct a ring handler that logs a user out."
   [config lookup-id-token delete-session]
   (fn [req]
     (let [end-session-endpoint (get-end-session-endpoint config)
+          post-logout-redirect-uri (get-post-login-redirect-uri config)
           session-id (get-in req [:session :emissary/session-id])
           id-token (lookup-id-token session-id)]
       (delete-session session-id)
-      ;; TODO: Properly construct url
-      ;; TODO: State https://openid.net/specs/openid-connect-rpinitiated-1_0.html
-      (-> (redirect (str end-session-endpoint "?id_token_hint=" id-token "&post_logout_redirect_uri=" (:post-logout-redirect-uri config)))
+      (-> (redirect (str end-session-endpoint
+                         "?id_token_hint=" id-token
+                         "&post_logout_redirect_uri=" post-logout-redirect-uri))
           (update :session dissoc :emissary/session-id)))))
 
 (defn- request-refresh-req

@@ -70,7 +70,7 @@
         jwks-response {:keys [jwk]}
         config
         (with-redefs
-         [sut/request-idp-openid-configuration-req
+         [sut/request-idp-openid-config-req
           (fn [_] {:body {:token_endpoint token_endpoint
                           :authorization_endpoint authorization_endpoint}})
           sut/request-idp-jwks-req
@@ -108,7 +108,7 @@
        jwks-response
        {:keys []}]
    (with-redefs
-    [sut/request-idp-openid-configuration-req (fn [_] {:body oidc-config-response})
+    [sut/request-idp-openid-config-req (fn [_] {:body oidc-config-response})
      sut/request-idp-jwks-req (fn [_] {:body jwks-response})]
      (sut/gen-client-config
       {:openid-config-url "https://identity.provider/realms/main/.well-known/openid-configuration"
