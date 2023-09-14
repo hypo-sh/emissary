@@ -3,8 +3,6 @@
             [clojure.string :refer [starts-with?]]
             [clojure.set :refer [difference union]]
             [ring.util.response :refer [redirect]]
-            [buddy.core.hash :as hash]
-            [buddy.core.codecs :as codecs]
             [buddy.sign.jwk :as jwk]
             [buddy.sign.jwt :as jwt]))
 
@@ -171,13 +169,9 @@
             (request-id-token (merge config {:code code}))]
         (unsign-token! config id_token)
         (unsign-token! config access_token)
-        (let [emissary-session-id (-> id_token
-                                      (hash/sha256)
-                                      (codecs/bytes->hex))]
-
-          (save-session! emissary-session-id id_token access_token refresh_token refresh_expires_in)
+        (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
           (-> (redirect (:post-logout-redirect-uri config))
-              (assoc-in [:session :emissary/session-id] emissary-session-id)))))))
+              (assoc-in [:session :emissary/session-id] session-id)))))))
 
 (defn- get-end-session-endpoint
   [config]
