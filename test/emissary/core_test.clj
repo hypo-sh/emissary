@@ -1,6 +1,5 @@
 (ns emissary.core-test
   (:require [emissary.core :as sut]
-            ;; TODO: Test only
             [emissary.test-util :as tu]
             [hyperfiddle.rcf :refer [tests]]))
 
@@ -77,16 +76,17 @@
           sut/request-idp-jwks-req
           (fn [_] {:body jwks-response})]
           ;; TODO: Test mismatch of redirect_uri
-          (sut/gen-client-config "https://identity.provider/realms/main/.well-known/openid-configuration"
-                                 "https://hypo.instance/oauth"
-                                 config-aud
-                                 config-issuer
-                                 "hypo"
-                                 insecure-mode?
-                                 scope
-                                 response-type
-                                 trusted-audiences
-                                 post-logout-redirect-uri))
+          (sut/gen-client-config
+           {:openid-config-url "https://identity.provider/realms/main/.well-known/openid-configuration"
+            :redirect-uri "https://hypo.instance/oauth"
+            :aud config-aud
+            :iss config-issuer
+            :client-id "hypo"
+            :insecure-mode? insecure-mode?
+            :scope scope
+            :response-type response-type
+            :trusted-audiences trusted-audiences
+            :post-logout-redirect-uri post-logout-redirect-uri}))
         handler (sut/make-handle-oidc
                  config
                  save-session!)]
@@ -94,9 +94,9 @@
     (with-redefs
  ;; TODO: Test endpoint failures
      [sut/request-id-token-req (fn [_token-uri _code _redirect-uri _client-id]
-                               {:body {:id_token id-token
-                                       :access_token access-token
-                                       :refresh_token refresh-token}})]
+                                 {:body {:id_token id-token
+                                         :access_token access-token
+                                         :refresh_token refresh-token}})]
       (handler {:query-params {"code" "abc"
                                "session_state" "TODO"}}))))
 
@@ -110,19 +110,20 @@
    (with-redefs
     [sut/request-idp-openid-configuration-req (fn [_] {:body oidc-config-response})
      sut/request-idp-jwks-req (fn [_] {:body jwks-response})]
-     (sut/gen-client-config "https://identity.provider/realms/main/.well-known/openid-configuration"
-                            "https://hypo.instance/oauth"
-                            "hypo"
-                            "https://identity.provider/realms/main"
-                            "hypo"
-                            false
-                            #{"openid" "roles"}
-                            #{"code"}
-                            #{"google"}
-                            "https://hypo.instance"))
-
+     (sut/gen-client-config
+      {:openid-config-url "https://identity.provider/realms/main/.well-known/openid-configuration"
+       :redirect-uri "https://hypo.instance/oauth"
+       :aud "hypo"
+       :iss "https://identity.provider/realms/main"
+       :client-id "hypo"
+       :insecure-mode? false
+       :scope #{"openid" "roles"}
+       :response-type #{"code"}
+       :trusted-audiences #{"google"}
+       :post-logout-redirect-uri "https://hypo.instance"}))
    :=
-   {:redirect-uri "https://hypo.instance/oauth"
+   {:openid-config-url "https://identity.provider/realms/main/.well-known/openid-configuration"
+    :redirect-uri "https://hypo.instance/oauth"
     :aud "hypo"
     :client-id "hypo"
     :response-type #{"code"}
@@ -161,7 +162,12 @@
  {:headers {"Location" "https://hypo.app"}
   :status 302
   :body ""
-  :session {:emissary/session-id _}})
+  :session {:emissary/session-id _}}
+
+ (test-make-handle-oidc (wrap-oidc-test-config
+                         {:response-type #{"code" "token"}}))
+ :throws
+ java.lang.AssertionError)
 
 (tests
  "Tests for https://openid.net/specs/openid-connect-core-1_0.html"

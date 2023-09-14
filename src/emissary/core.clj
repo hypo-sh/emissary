@@ -40,27 +40,24 @@
     {:config openid-configuration
      :jwks jwks}))
 
-(defn- -gen-client-config
-  [redirect-uri aud iss client-id insecure-mode? scope response-type trusted-audiences post-logout-redirect-uri]
-  {:scope scope
-   :response-type response-type
-   :aud aud
-   :client-id client-id
-   :iss iss
-   :redirect-uri redirect-uri
-   :trusted-audiences trusted-audiences
-   :insecure-mode? (or insecure-mode? false)
-   :post-logout-redirect-uri post-logout-redirect-uri})
-
-;; TODO: Assert that flow option is correct
 (defn gen-client-config
   "generate root configuration map. will raise if idp cannot be reached."
-  ;; todo: argument order; document argument semantics
-  ;;
-  [openid-config-url redirect-uri aud iss client-id insecure-mode? scope response-type trusted-audiences post-logout-redirect-uri]
+  ;; TODO: argument order; document argument semantics
+  [{:keys [openid-config-url
+           redirect-uri
+           aud
+           iss
+           client-id
+           insecure-mode?
+           scope
+           response-type
+           trusted-audiences
+           post-logout-redirect-uri]
+    :or {insecure-mode? false}
+    :as config}]
   (binding [*assert* true]
-    (let [config (-> (-gen-client-config redirect-uri aud iss client-id insecure-mode? scope response-type trusted-audiences post-logout-redirect-uri)
-                     (merge {:idp-settings (request-idp-settings openid-config-url)}))]
+    (let [config (merge config {:idp-settings (request-idp-settings openid-config-url)})]
+      (assert (= #{"code"} response-type)) ;; We currently only support the authorization code flow
       (when-not (:insecure-mode? config)
         (assert (starts-with? (get-in config [:idp-settings :config :authorization_endpoint]) "https"))
         (assert (starts-with? (get-in config [:idp-settings :config :token_endpoint]) "https")))
@@ -119,8 +116,6 @@
             "Untrusted audience returned in :aud claim")
     unsigned-jwt))
 
-;; TODO: name middleware, not callback
-;; TODO: This could theoretically switch between flow modes depending on config
 ;; TODO: test with-result, which updates the session object
 (defn make-handle-oidc
   [config save-session!]
@@ -149,9 +144,6 @@
           (save-session! emissary-session-id id_token access_token refresh_token)
           (-> (redirect (:post-logout-redirect-uri config))
               (assoc-in [:session :emissary/session-id] emissary-session-id)))))))
-
-;; Table describing how response_type values map to flows:
-;; https://openid.net/specs/openid-connect-core-1_0.html#Authentication
 
 (defn- get-end-session-endpoint
   [configuration]
