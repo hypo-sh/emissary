@@ -164,91 +164,94 @@
   :session {:emissary/session-id _}})
 
 (tests
- "spec tests"
+ "Tests for https://openid.net/specs/openid-connect-core-1_0.html"
 
  ;; Spec-tests START
- "Communication with the Authorization Endpoint MUST utilize TLS"
+ "3.1.2 Communication with the Authorization Endpoint MUST utilize TLS"
  (test-make-handle-oidc (wrap-oidc-test-config
                          {:authorization_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
- "scope REQUIRED"
+ "3.1.2.1 scope REQUIRED"
  #_#_#_false := true
 
- "response_type REQUIRED"
+ "3.1.2.1 response_type REQUIRED"
  #_#_#_false := true
 
- "client_id REQUIRED"
+ "3.1.2.1 client_id REQUIRED"
  #_#_#_false := true
 
- "redirect_uri REQUIRED"
+ "3.1.2.1 redirect_uri REQUIRED"
  #_#_#_false := true
 
- "Redirection URI to which the response will be sent. This URI MUST exactly match one of the Redirection URI values for the Client pre-registered at the OpenID Provider"
+ "3.2.2.1 Redirection URI to which the response will be sent. This URI MUST exactly match one of the Redirection URI values for the Client pre-registered at the OpenID Provider"
  #_#_#_false := true
 
- "When using the Authorization Code Flow, the Client MUST validate the response according to RFC 6749, especially Sections 4.1.2 and 10.12"
+ "3.1.2.7 When using the Authorization Code Flow, the Client MUST validate the response according to RFC 6749, especially Sections 4.1.2 and 10.12"
  #_#_#_false := true
 
- "Communication with the Token Endpoint MUST utilize TLS"
+ "3.1.3 Communication with the Token Endpoint MUST utilize TLS"
  (test-make-handle-oidc (wrap-oidc-test-config
                          {:token_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
- "If the Client is a Confidential Client, then it MUST authenticate to the Token Endpoint using the authentication method registered for its client_id, as described in Section 9"
+ "3.1.3.1 If the Client is a Confidential Client, then it MUST authenticate to the Token Endpoint using the authentication method registered for its client_id, as described in Section 9"
  #_#_#_false := true
 
  "3.1.3.7 If encryption was negotiated with the OP at Registration time and the ID Token is not encrypted, the RP SHOULD reject it"
  #_#_#_false := true
 
- "The Issuer Identifier for the OpenID Provider (which is typically obtained during Discovery) MUST exactly match the value of the iss (issuer) Claim"
+ "3.1.3.7.2 The Issuer Identifier for the OpenID Provider (which is typically obtained during Discovery) MUST exactly match the value of the iss (issuer) Claim"
  (test-make-handle-oidc (wrap-oidc-test-config
                          {:config-issuer "https://identity.provider/realms/main"
                           :id-token-issuer "https://attacking.provider/realms/main"}))
  :throws clojure.lang.ExceptionInfo
 
- "The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience"
+ "3.1.3.7.3 The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience"
  #_#_#_false := true
 
- "The ID Token MUST be rejected if the ID Token does not list the Client as a valid audience,"
+ "3.1.3.7.3 The ID Token MUST be rejected if the ID Token does not list the Client as a valid audience,"
  (test-make-handle-oidc (wrap-oidc-test-config
                          {:config-aud "hypo"
                           :id-token-aud "attacker"}))
  :throws clojure.lang.ExceptionInfo
 
- ;; TODO: Potentially remove per https://bitbucket.org/openid/connect/pull-requests/340/errata-clarified-that-azp-does-not-occur
- "or if it contains additional audiences not trusted by the Client"
- ;; NOTE: https://bitbucket.org/openid/connect/issues/973/
+ ;; This is contentious
+ ;; - https://bitbucket.org/openid/connect/issues/973/
+ ;; - https://bitbucket.org/openid/connect/pull-requests/340/errata-clarified-that-azp-does-not-occur
+ "3.1.3.7.3 or if it contains additional audiences not trusted by the Client"
  (test-make-handle-oidc (wrap-oidc-test-config
                          {:config-aud "hypo"
                           :id-token-aud ["hypo" "attacker"]}))
  :throws java.lang.AssertionError
 
- "If the ID Token contains multiple audiences, the Client SHOULD verify that an azp Claim is present"
+ ;; Contentious; see above
+ "3.1.3.7.4 If the ID Token contains multiple audiences, the Client SHOULD verify that an azp Claim is present"
  #_#_#_false := true
 
- "If an azp (authorized party) Claim is present, the Client SHOULD verify that its client_id is the Claim Value"
+ ;; Contentious; see above
+ "3.1.3.7.5 If an azp (authorized party) Claim is present, the Client SHOULD verify that its client_id is the Claim Value"
  #_#_#_false := true
 
- "The Client MUST validate the signature of all other ID Tokens according to JWS [JWS] using the algorithm specified in the JWT alg Header Parameter. "
+ "3.1.3.7.6 The Client MUST validate the signature of all other ID Tokens according to JWS [JWS] using the algorithm specified in the JWT alg Header Parameter. "
  #_#_#_false := true
 
- "The Client MUST use the keys provided by the Issuer"
+ "3.1.3.7.6 The Client MUST use the keys provided by the Issuer"
  #_#_#_false := true
 
- "The current time MUST be before the time represented by the exp Claim"
+ "3.1.3.7.9 The current time MUST be before the time represented by the exp Claim"
  (test-make-handle-oidc (wrap-oidc-test-config
                          {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)})) ;; TODO: "or it contains..."
  :throws clojure.lang.ExceptionInfo
 
- "If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present and its value checked to verify that it is the same value as the one that was sent in the Authentication Request"
+ "3.1.3.7.11 If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present and its value checked to verify that it is the same value as the one that was sent in the Authentication Request"
  #_#_#_false := true
 
- "The Client SHOULD check the nonce value for replay attacks"
+ "3.1.3.7.11 The Client SHOULD check the nonce value for replay attacks"
  #_#_#_false := true
 
- "If the acr Claim was requested, the Client SHOULD check that the asserted Claim Value is appropriate"
+ "3.1.3.7.12 If the acr Claim was requested, the Client SHOULD check that the asserted Claim Value is appropriate"
  #_#_#_false := true
 
- "If the auth_time Claim was requested, either through a specific request for this Claim or by using the max_age parameter, the Client SHOULD check the auth_time Claim value and request re-authentication if it determines too much time has elapsed since the last End-User authentication"
+ "3.1.3.7.13 If the auth_time Claim was requested, either through a specific request for this Claim or by using the max_age parameter, the Client SHOULD check the auth_time Claim value and request re-authentication if it determines too much time has elapsed since the last End-User authentication"
  #_#_#_false := true)
