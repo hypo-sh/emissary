@@ -76,7 +76,6 @@
   :post-logout-redirect-uri
   URI where user should be redirected after login.
   "
-  ;; TODO: argument order; document argument semantics
   [{:keys [openid-config-uri
            redirect-uri
            aud
@@ -130,7 +129,6 @@
         {:keys [alg _typ kid]} (jwt/decode-header jwt)
         key (find-key kid ks)
         pubkey (jwk/public-key key)]
-    ;; TODO: Confirm that this is all the validation required by spec
     (jwt/unsign jwt pubkey {:alg alg
                             :iss iss
                             :aud aud})))
@@ -161,7 +159,6 @@
   [config save-session!]
   (binding [*assert* true]
     (fn oauth-callback [req]
-      ;; NOTE: Requires keywordized query-params object
       (let [code (get-in req [:query-params "code"])
             _session_state (get-in req [:query-params "session_state"])
             {:keys [access_token

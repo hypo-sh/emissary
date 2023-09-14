@@ -5,7 +5,6 @@
 
 (defn wrap-oidc-test-config [overrides]
   (merge
-   ;; TODO: Assert calls on save-session!
    {:save-session! (fn [_sid _id-token _access-token _refresh-token])
     :token_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/token"
     :authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"
@@ -51,7 +50,6 @@
            post-logout-redirect-uri]}]
   (let [kid "123"
         jwk (tu/generate-jwk kid)
-       ;; Test mismatches of all combinations mandated by spec including kid
         id-token (tu/test-sign jwk
                                kid
                                {:iss id-token-issuer
@@ -75,7 +73,6 @@
                           :authorization_endpoint authorization_endpoint}})
           sut/request-idp-jwks-req
           (fn [_] {:body jwks-response})]
-          ;; TODO: Test mismatch of redirect_uri
           (sut/gen-client-config
            {:openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
             :redirect-uri "https://hypo.instance/oauth"
@@ -92,13 +89,12 @@
                  save-session!)]
 
     (with-redefs
- ;; TODO: Test endpoint failures
      [sut/request-id-token-req (fn [_token-uri _code _redirect-uri _client-id]
                                  {:body {:id_token id-token
                                          :access_token access-token
                                          :refresh_token refresh-token}})]
       (handler {:query-params {"code" "abc"
-                               "session_state" "TODO"}}))))
+                               "session_state" ""}}))))
 
 (tests
  "gen-client-config"
@@ -138,7 +134,6 @@
 (tests
  "wrap-oidc succeeds"
  (test-make-handle-oidc (wrap-oidc-test-config {}))
- ;; TODO: for each of these tests, make sure save-session! is called appropriately
  := {:headers {"Location" "https://hypo.app"}
      :status 302
      :body ""
@@ -247,7 +242,7 @@
 
  "3.1.3.7.9 The current time MUST be before the time represented by the exp Claim"
  (test-make-handle-oidc (wrap-oidc-test-config
-                         {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)})) ;; TODO: "or it contains..."
+                         {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}))
  :throws clojure.lang.ExceptionInfo
 
  "3.1.3.7.11 If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present and its value checked to verify that it is the same value as the one that was sent in the Authentication Request"
