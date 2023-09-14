@@ -93,7 +93,7 @@
 
     (with-redefs
  ;; TODO: Test endpoint failures
-     [sut/-request-token-req (fn [_token-uri _code _redirect-uri _client-id]
+     [sut/request-id-token-req (fn [_token-uri _code _redirect-uri _client-id]
                                {:body {:id_token id-token
                                        :access_token access-token
                                        :refresh_token refresh-token}})]

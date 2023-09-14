@@ -69,12 +69,11 @@
 (defn -find-key [kid keys]
   (first (filter (fn [v] (= (:kid v) kid)) keys)))
 
-(defn -get-keys [jwks]
-  (get-in jwks [:keys]))
+(defn -get-keys [config]
+  (get-in config [:jwks :keys]))
 
 (defn -unsign-jwt [oidc-config jwt iss aud]
-  (let [{:keys [jwks]} oidc-config
-        ks (-get-keys jwks)
+  (let [ks (-get-keys oidc-config)
         {:keys [alg _typ kid]} (jwt/decode-header jwt)
         key (-find-key kid ks)
         pubkey (jwk/public-key key)]
@@ -84,10 +83,7 @@
                             :iss iss
                             :aud aud})))
 
-(defn -get-token-uri [configuration]
-  (get-in configuration [:config :token_endpoint]))
-
-(defn -request-token-req
+(defn request-id-token-req
   [token-uri code redirect-uri client-id]
   (client/post token-uri
                {:form-params
@@ -98,17 +94,14 @@
                 :headers {"Content-Type" "application/x-www-form-urlencoded"}
                 :as :json}))
 
-(defn -request-token
-  [idp-settings redirect-uri code client-id]
-  (let [token-uri (-get-token-uri idp-settings)
-        result (-request-token-req token-uri code redirect-uri client-id)]
-    (get-in result [:body])))
+(defn -get-id-token-uri [configuration]
+  (get-in configuration [:idp-settings :config :token_endpoint]))
 
-;; TODO: rename.
-;; This gets all tokens, not just id token
-(defn get-id-token
-  [{:keys [idp-settings redirect-uri code client-id]}]
-  (-request-token idp-settings redirect-uri code client-id))
+(defn request-id-token
+  [{:keys [redirect-uri code client-id] :as config}]
+  (let [token-uri (-get-id-token-uri config)
+        result (request-id-token-req token-uri code redirect-uri client-id)]
+    (get-in result [:body])))
 
 (defn unsign-token!
   "Validate id token. If passes, return clojure object representing id jwt."
@@ -145,7 +138,7 @@
                     scope
                     token_type
                     id_token] :as ks}
-            (get-id-token (merge config {:code code}))]
+            (request-id-token (merge config {:code code}))]
         (unsign-token! config id_token)
         ;; TODO: Test that access_token is validated
         (unsign-token! config access_token)
@@ -162,7 +155,6 @@
 
 (defn -get-end-session-endpoint
   [configuration]
-  ;; TODO: Make previous -get functions start at root rather than :idp-settings
   (get-in configuration [:idp-settings :config :end_session_endpoint]))
 
 (defn make-handle-logout
@@ -189,6 +181,6 @@
 
 (defn refresh-token
   [config refresh-token]
-  (let [token-uri (-get-token-uri (:idp-settings config))
+  (let [token-uri (-get-id-token-uri (:idp-settings config))
         result (-request-refresh-req token-uri (:client-id config) refresh-token)]
     (:body result)))
