@@ -1,7 +1,7 @@
-(ns clj-oidc.core-test
-  (:require [clj-oidc.core :as sut]
+(ns emissary.core-test
+  (:require [emissary.core :as sut]
             ;; TODO: Test only
-            [clj-oidc.test-util :as tu]
+            [emissary.test-util :as tu]
             [hyperfiddle.rcf :refer [tests]]))
 
 (defn wrap-oidc-test-config [overrides]
@@ -141,7 +141,7 @@
  := {:headers {"Location" "https://hypo.app"}
      :status 302
      :body ""
-     :session {:clj-oidc/session-id _}}
+     :session {:emissary/session-id _}}
 
  "wrap-oidc succeeds when JWT aud is list"
  (test-make-handle-oidc (wrap-oidc-test-config {:aud ["hypo"]}))
@@ -149,7 +149,7 @@
  {:headers {"Location" "https://hypo.app"}
   :status 302
   :body ""
-  :session {:clj-oidc/session-id _}}
+  :session {:emissary/session-id _}}
 
  "wrap-oidc succeeds when JWT contains trusted audience"
  (test-make-handle-oidc (wrap-oidc-test-config
@@ -161,7 +161,7 @@
  {:headers {"Location" "https://hypo.app"}
   :status 302
   :body ""
-  :session {:clj-oidc/session-id _}})
+  :session {:emissary/session-id _}})
 
 ;; TODO: Check through Security Considerations
 ;; https://openid.net/specs/openid-connect-core-1_0.html#Security%Considerations

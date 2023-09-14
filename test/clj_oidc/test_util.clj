@@ -1,4 +1,4 @@
-(ns clj-oidc.test-util
+(ns emissary.test-util
   (:require [buddy.core.keys :as ks]
             [buddy.sign.jwt :as jwt]
             [buddy.sign.jwk :as jwk])

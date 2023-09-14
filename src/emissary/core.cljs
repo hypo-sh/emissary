@@ -1,4 +1,4 @@
-(ns clj-oidc.core
+(ns emissary.core
   (:require [clojure.string :refer [join]]
             [hyperfiddle.rcf :as rcf]))
 

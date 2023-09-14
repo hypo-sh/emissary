@@ -1,4 +1,4 @@
-(ns clj-oidc.core
+(ns emissary.core
   (:require [clj-http.client :as client]
             [clojure.string :refer [starts-with?]]
             [clojure.set :refer [difference union]]
@@ -149,13 +149,13 @@
         (unsign-token! config id_token)
         ;; TODO: Test that access_token is validated
         (unsign-token! config access_token)
-        (let [clj-oidc-session-id (-> id_token
+        (let [emissary-session-id (-> id_token
                                       (hash/sha256)
                                       (codecs/bytes->hex))]
 
-          (save-session! clj-oidc-session-id id_token access_token refresh_token)
+          (save-session! emissary-session-id id_token access_token refresh_token)
           (-> (redirect (:post-logout-redirect-uri config))
-              (assoc-in [:session :clj-oidc/session-id] clj-oidc-session-id)))))))
+              (assoc-in [:session :emissary/session-id] emissary-session-id)))))))
 
 ;; Table describing how response_type values map to flows:
 ;; https://openid.net/specs/openid-connect-core-1_0.html#Authentication
@@ -169,13 +169,13 @@
   [config lookup-id-token delete-session]
   (fn [req]
     (let [end-session-endpoint (-get-end-session-endpoint config)
-          session-id (get-in req [:session :clj-oidc/session-id])
+          session-id (get-in req [:session :emissary/session-id])
           id-token (lookup-id-token session-id)]
       (delete-session session-id)
       ;; TODO: Properly construct url
       ;; TODO: State https://openid.net/specs/openid-connect-rpinitiated-1_0.html
       (-> (redirect (str end-session-endpoint "?id_token_hint=" id-token "&post_logout_redirect_uri=" (:post-logout-redirect-uri config)))
-          (update :session dissoc :clj-oidc/session-id)))))
+          (update :session dissoc :emissary/session-id)))))
 
 (defn -request-refresh-req
   [token-uri client-id refresh-token]
