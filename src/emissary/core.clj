@@ -96,7 +96,8 @@
         (assert (starts-with? (get-in config [:idp-settings :config :token_endpoint]) "https")))
       config)))
 
-(defn- find-key [kid keys]
+(defn- find-key
+  [kid keys]
   (first (filter (fn [v] (= (:kid v) kid)) keys)))
 
 (defn- request-id-token-req
@@ -110,7 +111,8 @@
                 :headers {"Content-Type" "application/x-www-form-urlencoded"}
                 :as :json}))
 
-(defn- get-id-token-uri [config]
+(defn- get-id-token-uri
+  [config]
   (get-in config [:idp-settings :config :token_endpoint]))
 
 (defn- request-id-token
@@ -119,10 +121,12 @@
         result (request-id-token-req token-uri code redirect-uri client-id)]
     (get-in result [:body])))
 
-(defn- get-jwks [config]
+(defn- get-jwks
+  [config]
   (get-in config [:idp-settings :jwks :keys]))
 
-(defn- unsign-jwt [config jwt]
+(defn- unsign-jwt
+  [config jwt]
   (let [ks (get-jwks config)
         iss (:iss config)
         aud (:aud config)
@@ -135,8 +139,7 @@
 
 (defn unsign-token!
   "Validate id token. If passes, return clojure object representing id jwt."
-  [{:keys [trusted-audiences aud] :as config}
-   id_token]
+  [{:keys [trusted-audiences aud] :as config} id_token]
   (let [unsigned-jwt (unsign-jwt config id_token)
         jwt-aud (:aud unsigned-jwt)
         jwt-aud
@@ -163,7 +166,8 @@
             _session_state (get-in req [:query-params "session_state"])
             {:keys [access_token
                     refresh_token
-                    id_token]}
+                    id_token
+                    refresh_expires_in]}
             (request-id-token (merge config {:code code}))]
         (unsign-token! config id_token)
         (unsign-token! config access_token)
@@ -171,7 +175,7 @@
                                       (hash/sha256)
                                       (codecs/bytes->hex))]
 
-          (save-session! emissary-session-id id_token access_token refresh_token)
+          (save-session! emissary-session-id id_token access_token refresh_token refresh_expires_in)
           (-> (redirect (:post-logout-redirect-uri config))
               (assoc-in [:session :emissary/session-id] emissary-session-id)))))))
 
@@ -209,6 +213,6 @@
 
 (defn refresh-token
   [config refresh-token]
-  (let [token-uri (get-id-token-uri (:idp-settings config))
+  (let [token-uri (get-id-token-uri config)
         result (request-refresh-req token-uri (:client-id config) refresh-token)]
     (:body result)))
