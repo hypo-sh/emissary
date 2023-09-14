@@ -120,11 +120,13 @@
         result (request-id-token-req token-uri code redirect-uri client-id)]
     (get-in result [:body])))
 
-(defn- get-keys [config]
+(defn- get-jwks [config]
   (get-in config [:idp-settings :jwks :keys]))
 
-(defn- unsign-jwt [config jwt iss aud]
-  (let [ks (get-keys config)
+(defn- unsign-jwt [config jwt]
+  (let [ks (get-jwks config)
+        iss (:iss config)
+        aud (:aud config)
         {:keys [alg _typ kid]} (jwt/decode-header jwt)
         key (find-key kid ks)
         pubkey (jwk/public-key key)]
@@ -135,9 +137,9 @@
 
 (defn unsign-token!
   "Validate id token. If passes, return clojure object representing id jwt."
-  [{:keys [iss aud trusted-audiences] :as config}
+  [{:keys [trusted-audiences aud] :as config}
    id_token]
-  (let [unsigned-jwt (unsign-jwt config id_token iss aud)
+  (let [unsigned-jwt (unsign-jwt config id_token)
         jwt-aud (:aud unsigned-jwt)
         jwt-aud
         (into #{}
@@ -149,9 +151,13 @@
             "Untrusted audience returned in :aud claim")
     unsigned-jwt))
 
-;; TODO: test save-session!, which updates the session object
 (defn make-handle-oidc
-  "Constructs a ring handler that acts as an OIDC redirect URI."
+  "Constructs a ring handler that acts as an OIDC redirect URI.
+
+  This function assumes that you have ring middleware in place that
+  decodes and keywordizes query params and places them at a
+  `:query-params` key in the `req` map.
+  "
   [config save-session!]
   (binding [*assert* true]
     (fn oauth-callback [req]
@@ -163,7 +169,6 @@
                     id_token]}
             (request-id-token (merge config {:code code}))]
         (unsign-token! config id_token)
-        ;; TODO: Test that access_token is validated
         (unsign-token! config access_token)
         (let [emissary-session-id (-> id_token
                                       (hash/sha256)
