@@ -163,9 +163,6 @@
   :body ""
   :session {:emissary/session-id _}})
 
-;; TODO: Check through Security Considerations
-;; https://openid.net/specs/openid-connect-core-1_0.html#Security%Considerations
-
 (tests
  "spec tests"
 
