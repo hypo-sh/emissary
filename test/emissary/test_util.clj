@@ -25,9 +25,3 @@
 
 (defn test-unsign [jwk jwt verify]
   (jwt/unsign jwt (jwk/public-key jwk) (merge {:alg :rs256} verify)))
-
-(let [jwk (generate-jwk "abc")
-      jwt (test-sign jwk "abc" {:iss "jake"})]
-  (println
-   (jwt/decode-header jwt))
-  (test-unsign jwk jwt {:iss "jake"}))
