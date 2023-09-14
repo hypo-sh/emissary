@@ -8,39 +8,39 @@
             [buddy.sign.jwk :as jwk]
             [buddy.sign.jwt :as jwt]))
 
-(defn -request-idp-openid-configuration-req
+(defn- request-idp-openid-configuration-req
   [openid-configuration-endpoint]
   (client/get openid-configuration-endpoint {:as :json}))
 
-(defn -request-idp-openid-configuration
+(defn- request-idp-openid-configuration
   [config-endpoint]
   (-> config-endpoint
-      -request-idp-openid-configuration-req
+      request-idp-openid-configuration-req
       (get-in [:body])))
 
-(defn -get-cert-uri
+(defn- get-cert-uri
   [configuration]
   (get-in configuration [:jwks_uri]))
 
-(defn -request-idp-jwks-req
+(defn- request-idp-jwks-req
   [jwks-endpoint]
   (client/get jwks-endpoint {:as :json}))
 
-(defn -request-idp-jwks
+(defn- request-idp-jwks
   [cert-endpoint]
   (-> cert-endpoint
-      -request-idp-jwks-req
+      request-idp-jwks-req
       (get-in [:body])))
 
-(defn -request-idp-settings
+(defn- request-idp-settings
   [openid-config-url]
-  (let [openid-configuration (-request-idp-openid-configuration openid-config-url)
-        cert-uri (-get-cert-uri openid-configuration)
-        jwks (-request-idp-jwks cert-uri)]
+  (let [openid-configuration (request-idp-openid-configuration openid-config-url)
+        cert-uri (get-cert-uri openid-configuration)
+        jwks (request-idp-jwks cert-uri)]
     {:config openid-configuration
      :jwks jwks}))
 
-(defn -gen-client-config
+(defn- -gen-client-config
   [redirect-uri aud iss client-id insecure-mode? scope response-type trusted-audiences post-logout-redirect-uri]
   {:scope scope
    :response-type response-type
@@ -60,22 +60,22 @@
   [openid-config-url redirect-uri aud iss client-id insecure-mode? scope response-type trusted-audiences post-logout-redirect-uri]
   (binding [*assert* true]
     (let [config (-> (-gen-client-config redirect-uri aud iss client-id insecure-mode? scope response-type trusted-audiences post-logout-redirect-uri)
-                     (merge {:idp-settings (-request-idp-settings openid-config-url)}))]
+                     (merge {:idp-settings (request-idp-settings openid-config-url)}))]
       (when-not (:insecure-mode? config)
         (assert (starts-with? (get-in config [:idp-settings :config :authorization_endpoint]) "https"))
         (assert (starts-with? (get-in config [:idp-settings :config :token_endpoint]) "https")))
       config)))
 
-(defn -find-key [kid keys]
+(defn- find-key [kid keys]
   (first (filter (fn [v] (= (:kid v) kid)) keys)))
 
-(defn -get-keys [config]
+(defn- get-keys [config]
   (get-in config [:jwks :keys]))
 
-(defn -unsign-jwt [oidc-config jwt iss aud]
-  (let [ks (-get-keys oidc-config)
+(defn- unsign-jwt [oidc-config jwt iss aud]
+  (let [ks (get-keys oidc-config)
         {:keys [alg _typ kid]} (jwt/decode-header jwt)
-        key (-find-key kid ks)
+        key (find-key kid ks)
         pubkey (jwk/public-key key)]
     ;; TODO: Confirm that this is all the validation required by spec
     ;; link to spec in docstring
@@ -83,7 +83,7 @@
                             :iss iss
                             :aud aud})))
 
-(defn request-id-token-req
+(defn- request-id-token-req
   [token-uri code redirect-uri client-id]
   (client/post token-uri
                {:form-params
@@ -94,12 +94,12 @@
                 :headers {"Content-Type" "application/x-www-form-urlencoded"}
                 :as :json}))
 
-(defn -get-id-token-uri [configuration]
+(defn- get-id-token-uri [configuration]
   (get-in configuration [:idp-settings :config :token_endpoint]))
 
-(defn request-id-token
+(defn- request-id-token
   [{:keys [redirect-uri code client-id] :as config}]
-  (let [token-uri (-get-id-token-uri config)
+  (let [token-uri (get-id-token-uri config)
         result (request-id-token-req token-uri code redirect-uri client-id)]
     (get-in result [:body])))
 
@@ -107,7 +107,7 @@
   "Validate id token. If passes, return clojure object representing id jwt."
   [{:keys [idp-settings iss aud trusted-audiences]}
    id_token]
-  (let [unsigned-jwt (-unsign-jwt idp-settings id_token iss aud)
+  (let [unsigned-jwt (unsign-jwt idp-settings id_token iss aud)
         jwt-aud (:aud unsigned-jwt)
         jwt-aud
         (into #{}
@@ -153,14 +153,14 @@
 ;; Table describing how response_type values map to flows:
 ;; https://openid.net/specs/openid-connect-core-1_0.html#Authentication
 
-(defn -get-end-session-endpoint
+(defn- get-end-session-endpoint
   [configuration]
   (get-in configuration [:idp-settings :config :end_session_endpoint]))
 
 (defn make-handle-logout
   [config lookup-id-token delete-session]
   (fn [req]
-    (let [end-session-endpoint (-get-end-session-endpoint config)
+    (let [end-session-endpoint (get-end-session-endpoint config)
           session-id (get-in req [:session :emissary/session-id])
           id-token (lookup-id-token session-id)]
       (delete-session session-id)
@@ -169,7 +169,7 @@
       (-> (redirect (str end-session-endpoint "?id_token_hint=" id-token "&post_logout_redirect_uri=" (:post-logout-redirect-uri config)))
           (update :session dissoc :emissary/session-id)))))
 
-(defn -request-refresh-req
+(defn- request-refresh-req
   [token-uri client-id refresh-token]
   (client/post token-uri
                {:form-params
@@ -181,6 +181,6 @@
 
 (defn refresh-token
   [config refresh-token]
-  (let [token-uri (-get-id-token-uri (:idp-settings config))
-        result (-request-refresh-req token-uri (:client-id config) refresh-token)]
+  (let [token-uri (get-id-token-uri (:idp-settings config))
+        result (request-refresh-req token-uri (:client-id config) refresh-token)]
     (:body result)))
