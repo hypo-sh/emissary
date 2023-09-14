@@ -33,17 +33,51 @@
       (get-in [:body])))
 
 (defn- request-idp-settings
-  [openid-config-url]
-  (let [openid-config (request-idp-openid-config openid-config-url)
+  [openid-config-uri]
+  (let [openid-config (request-idp-openid-config openid-config-uri)
         cert-uri (get-cert-uri openid-config)
         jwks (request-idp-jwks cert-uri)]
     {:config openid-config
      :jwks jwks}))
 
 (defn gen-client-config
-  "generate root configuration map. will raise if idp cannot be reached."
+  "generate root configuration map. will raise if idp cannot be reached.
+  Takes a map with the following keys:
+
+  :openid-config-uri
+  URI of the identity provider's openid-configuration endpoint.
+  Example: \"https://identity.provider/realms/main/.well-known/openid-configuration\"
+
+  :redirect-uri
+  URI of your application's oauth endpoint.
+
+  :aud
+  JWT audience. Typically the URL of your server.
+
+  :iss
+  JWT issuer. Typically the URL of your identity provider.
+
+  :client-id
+  OIDC client ID of your application. Should match :aud.
+
+  :insecure-mode?
+  When set to true, disables various security checks. Do not use in production.
+
+  :scope
+  Requested OIDC scopes, expressed as a clojure set.
+
+  :response-type
+  OIDC response types, expressed as a clojure set. Selected response-type determines
+  OIDC flow. See https://openid.net/specs/openid-connect-core-1_0.html#Authentication.
+
+  :trusted-audiences
+  Other audiences that are allowed on the JWT expressed as a clojure set.
+
+  :post-logout-redirect-uri
+  URI where user should be redirected after login.
+  "
   ;; TODO: argument order; document argument semantics
-  [{:keys [openid-config-url
+  [{:keys [openid-config-uri
            redirect-uri
            aud
            iss
@@ -56,7 +90,7 @@
     :or {insecure-mode? false}
     :as config}]
   (binding [*assert* true]
-    (let [config (merge config {:idp-settings (request-idp-settings openid-config-url)})]
+    (let [config (merge config {:idp-settings (request-idp-settings openid-config-uri)})]
       (assert (= #{"code"} response-type)) ;; We currently only support the authorization code flow
       (when-not (:insecure-mode? config)
         (assert (starts-with? (get-in config [:idp-settings :config :authorization_endpoint]) "https"))

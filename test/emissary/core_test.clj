@@ -77,7 +77,7 @@
           (fn [_] {:body jwks-response})]
           ;; TODO: Test mismatch of redirect_uri
           (sut/gen-client-config
-           {:openid-config-url "https://identity.provider/realms/main/.well-known/openid-configuration"
+           {:openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
             :redirect-uri "https://hypo.instance/oauth"
             :aud config-aud
             :iss config-issuer
@@ -111,7 +111,7 @@
     [sut/request-idp-openid-config-req (fn [_] {:body oidc-config-response})
      sut/request-idp-jwks-req (fn [_] {:body jwks-response})]
      (sut/gen-client-config
-      {:openid-config-url "https://identity.provider/realms/main/.well-known/openid-configuration"
+      {:openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
        :redirect-uri "https://hypo.instance/oauth"
        :aud "hypo"
        :iss "https://identity.provider/realms/main"
@@ -122,7 +122,7 @@
        :trusted-audiences #{"google"}
        :post-logout-redirect-uri "https://hypo.instance"}))
    :=
-   {:openid-config-url "https://identity.provider/realms/main/.well-known/openid-configuration"
+   {:openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
     :redirect-uri "https://hypo.instance/oauth"
     :aud "hypo"
     :client-id "hypo"
