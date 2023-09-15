@@ -131,24 +131,44 @@
         {:keys [alg _typ kid]} (jwt/decode-header jwt)
         key (find-key kid ks)
         pubkey (jwk/public-key key)]
-    (jwt/unsign jwt pubkey {:alg alg
-                            :iss iss
-                            :aud aud})))
+    (try
+      (jwt/unsign jwt pubkey {:alg alg
+                              :iss iss
+                              :aud aud})
+      (catch Exception _))))
 
-(defn unsign-token!
-  "Validate id token. If passes, return clojure object representing id jwt."
+(defn unsign-token
+  "Validate id token. If passes, return clojure object representing id jwt. Returns nil otherwise."
   [{:keys [trusted-audiences aud] :as config} id_token]
-  (let [unsigned-jwt (unsign-jwt config id_token)
-        jwt-aud (:aud unsigned-jwt)
-        jwt-aud
-        (into #{}
-              (if (coll? jwt-aud)
-                (into #{} jwt-aud)
-                #{jwt-aud}))
-        all-trusted-audiences (union #{aud} trusted-audiences)]
-    (assert (empty? (difference jwt-aud all-trusted-audiences))
-            "Untrusted audience returned in :aud claim")
-    unsigned-jwt))
+  (when-let [unsigned-jwt (unsign-jwt config id_token)]
+    (let [jwt-aud (:aud unsigned-jwt)
+          jwt-aud
+          (into #{}
+                (if (coll? jwt-aud)
+                  (into #{} jwt-aud)
+                  #{jwt-aud}))
+          all-trusted-audiences (union #{aud} trusted-audiences)]
+      (when (empty? (difference jwt-aud all-trusted-audiences))
+        unsigned-jwt))))
+
+(defn- request-refresh-req
+  [token-uri client-id refresh-token]
+  (client/post token-uri
+               {:form-params
+                {"refresh_token" refresh-token
+                 "client_id" client-id
+                 "grant_type" "refresh_token"}
+                :headers {"Content-Type" "application/x-www-form-urlencoded"}
+                :as :json}))
+
+(defn exchange-tokens
+  "Exchanges id token and access token for new tokens. Returns map if successful, or nil otherwise."
+  [config refresh-token]
+  (try
+    (let [token-uri (get-id-token-uri config)
+          result (request-refresh-req token-uri (:client-id config) refresh-token)]
+      (:body result))
+    (catch Exception _)))
 
 (defn make-handle-oidc
   "Constructs a ring handler that acts as an OIDC redirect URI.
@@ -167,11 +187,12 @@
                     id_token
                     refresh_expires_in]}
             (request-id-token (merge config {:code code}))]
-        (unsign-token! config id_token)
-        (unsign-token! config access_token)
-        (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
-          (-> (redirect (:post-logout-redirect-uri config))
-              (assoc-in [:session :emissary/session-id] session-id)))))))
+        ;; TODO: https://github.com/hypo-sh/emissary/issues/3
+        (when (and (unsign-token config id_token)
+                   (unsign-token config access_token))
+          (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
+            (-> (redirect (:post-logout-redirect-uri config))
+                (assoc-in [:session :emissary/session-id] session-id))))))))
 
 (defn- get-end-session-endpoint
   [config]
@@ -194,19 +215,3 @@
                          "?id_token_hint=" id-token
                          "&post_logout_redirect_uri=" post-logout-redirect-uri))
           (update :session dissoc :emissary/session-id)))))
-
-(defn- request-refresh-req
-  [token-uri client-id refresh-token]
-  (client/post token-uri
-               {:form-params
-                {"refresh_token" refresh-token
-                 "client_id" client-id
-                 "grant_type" "refresh_token"}
-                :headers {"Content-Type" "application/x-www-form-urlencoded"}
-                :as :json}))
-
-(defn refresh-token
-  [config refresh-token]
-  (let [token-uri (get-id-token-uri config)
-        result (request-refresh-req token-uri (:client-id config) refresh-token)]
-    (:body result)))
