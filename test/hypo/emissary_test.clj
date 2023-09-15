@@ -1,6 +1,6 @@
-(ns emissary.core-test
-  (:require [emissary.core :as sut]
-            [emissary.test-util :as tu]
+(ns hypo.emissary-test
+  (:require [hypo.emissary :as sut]
+            [hypo.emissary.test-util :as tu]
             [hyperfiddle.rcf :refer [tests]]))
 
 (defn wrap-oidc-test-config [overrides]
@@ -28,7 +28,7 @@
     :id-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}
    overrides))
 
-(defn test-make-handle-oidc
+(defn test-make-authentication-redirect-handler
   [{:keys [save-session!
            config-issuer
            config-aud
@@ -84,7 +84,7 @@
             :response-type response-type
             :trusted-audiences trusted-audiences
             :post-logout-redirect-uri post-logout-redirect-uri}))
-        handler (sut/make-handle-oidc
+        handler (sut/make-authentication-redirect-handler
                  config
                  save-session!)]
 
@@ -133,14 +133,14 @@
 
 (tests
  "wrap-oidc succeeds"
- (test-make-handle-oidc (wrap-oidc-test-config {}))
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config {}))
  := {:headers {"Location" "https://hypo.app"}
      :status 302
      :body ""
      :session {:emissary/session-id _}}
 
  "wrap-oidc succeeds when JWT aud is list"
- (test-make-handle-oidc (wrap-oidc-test-config {:aud ["hypo"]}))
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config {:aud ["hypo"]}))
  :=
  {:headers {"Location" "https://hypo.app"}
   :status 302
@@ -148,7 +148,7 @@
   :session {:emissary/session-id _}}
 
  "wrap-oidc succeeds when JWT contains trusted audience"
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:config-aud "hypo"
                           :trusted-audiences #{"google"}
                           :id-token-aud ["hypo" "google"]}))
@@ -159,7 +159,7 @@
   :body ""
   :session {:emissary/session-id _}}
 
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:response-type #{"code" "token"}}))
  :throws
  java.lang.AssertionError)
@@ -169,7 +169,7 @@
 
  ;; Spec-tests START
  "3.1.2 Communication with the Authorization Endpoint MUST utilize TLS"
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:authorization_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
@@ -192,7 +192,7 @@
  #_#_#_false := true
 
  "3.1.3 Communication with the Token Endpoint MUST utilize TLS"
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:token_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
@@ -203,7 +203,7 @@
  #_#_#_false := true
 
  "3.1.3.7.2 The Issuer Identifier for the OpenID Provider (which is typically obtained during Discovery) MUST exactly match the value of the iss (issuer) Claim"
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:config-issuer "https://identity.provider/realms/main"
                           :id-token-issuer "https://attacking.provider/realms/main"}))
  := nil
@@ -212,7 +212,7 @@
  #_#_#_false := true
 
  "3.1.3.7.3 The ID Token MUST be rejected if the ID Token does not list the Client as a valid audience,"
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:config-aud "hypo"
                           :id-token-aud "attacker"}))
  := nil
@@ -221,7 +221,7 @@
  ;; - https://bitbucket.org/openid/connect/issues/973/
  ;; - https://bitbucket.org/openid/connect/pull-requests/340/errata-clarified-that-azp-does-not-occur
  "3.1.3.7.3 or if it contains additional audiences not trusted by the Client"
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:config-aud "hypo"
                           :id-token-aud ["hypo" "attacker"]}))
  := nil
@@ -241,7 +241,7 @@
  #_#_#_false := true
 
  "3.1.3.7.9 The current time MUST be before the time represented by the exp Claim"
- (test-make-handle-oidc (wrap-oidc-test-config
+ (test-make-authentication-redirect-handler (wrap-oidc-test-config
                          {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}))
  := nil
 

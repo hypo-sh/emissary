@@ -1,5 +1,5 @@
-(ns emissary.core-test
-  (:require [emissary.core :as sut]
+(ns hypo.emissary-test
+  (:require [hypo.emissary :as sut]
             [hyperfiddle.rcf :as rcf]))
 
 (rcf/tests
