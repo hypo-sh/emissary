@@ -1,36 +1,40 @@
-# emissary
+# Emissary
+
+Outsource user managment to an OIDC identity provider.
+
+## Status
+
+This is pre-alpha software currently used internally at Hypo. Expect breaking changes.
 
 ## Testing
-To run clojure tests:
+
+To run Clojure tests:
 
 ```bash
 clojure -M:test
 ```
 
-To run clojurescript tests:
+To run ClojureScript tests:
 (TODO)
 
 
 ## Development
 
-To start clojure and clojurescript repls:
+To start Clojure and ClojureScript repls:
 
-```bash
+```
+# In your shell
 clojure -M:dev:cider
-```
 
-```
+;; in emacs
 cider-connect-clj
-```
 
-```clojure
+;; In your repl
 (user/main)
-```
 
-```
+;; in emacs
 cider-connect-sibling-cljs
-```
 
-```clojure
+;; in your repl
 (user/main)
 ```
