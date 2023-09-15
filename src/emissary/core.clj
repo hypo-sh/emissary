@@ -187,7 +187,7 @@
                     id_token
                     refresh_expires_in]}
             (request-id-token (merge config {:code code}))]
-        ;; TODO: Turn to if/else, and add add error to response in else branch
+        ;; TODO: https://github.com/hypo-sh/emissary/issues/3
         (when (and (unsign-token config id_token)
                    (unsign-token config access_token))
           (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
