@@ -170,7 +170,7 @@
       (:body result))
     (catch Exception _)))
 
-(defn make-handle-oidc
+(defn make-authentication-redirect-handler
   "Constructs a ring handler that acts as an OIDC redirect URI.
 
   This function assumes that you have ring middleware in place that
@@ -202,7 +202,7 @@
   [config]
   (get-in config [:post-logout-redirect-uri]))
 
-(defn make-handle-logout
+(defn make-logout-handler
   "Construct a ring handler that logs a user out."
   [config lookup-id-token delete-session]
   (fn [req]
