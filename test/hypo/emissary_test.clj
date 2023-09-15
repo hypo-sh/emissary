@@ -1,6 +1,6 @@
-(ns emissary.core-test
-  (:require [emissary.core :as sut]
-            [emissary.test-util :as tu]
+(ns hypo.emissary-test
+  (:require [hypo.emissary :as sut]
+            [hypo.emissary.test-util :as tu]
             [hyperfiddle.rcf :refer [tests]]))
 
 (defn wrap-oidc-test-config [overrides]

@@ -27,7 +27,7 @@
    :main-opts ["-m" "cognitect.test-runner"
                "-d" "src"
                "-d" "test"
-               "-r" "emissary.*$"]
+               "-r" "hypo.emissary.*$"]
    :jvm-opts
    ["-XX:-OmitStackTraceInFastThrow" ;; RCF
     "-Dhyperfiddle.rcf.generate-tests=true"]}}}

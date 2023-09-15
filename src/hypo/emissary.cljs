@@ -1,4 +1,4 @@
-(ns emissary.core
+(ns hypo.emissary
   (:require [clojure.string :refer [join]]))
 
 (defn authorization-uri

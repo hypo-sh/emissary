@@ -1,4 +1,4 @@
-(ns emissary.test-util
+(ns hypo.emissary.test-util
   (:require [buddy.core.keys :as ks]
             [buddy.sign.jwt :as jwt]
             [buddy.sign.jwk :as jwk])

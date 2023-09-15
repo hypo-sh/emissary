@@ -1,4 +1,4 @@
-(ns emissary.core
+(ns hypo.emissary
   (:require [clj-http.client :as client]
             [clojure.string :refer [starts-with?]]
             [clojure.set :refer [difference union]]
