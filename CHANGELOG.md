@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
  - Add `hypo.emissary.malli` ns and create spec for configs
  - Add `hypo.emissary/config->browser-config`
  - Add `:tokens-request-failure-redirect-uri-fn` to config map
+ - Add `:post-login-redirect-uri-fn` to config map
  - Added two new dependencies:
    - `metosin/malli`
    - `com.github.eval/malli-select`
