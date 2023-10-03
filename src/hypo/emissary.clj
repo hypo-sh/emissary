@@ -3,18 +3,21 @@
             [clojure.string :refer [starts-with?]]
             [clojure.set :refer [difference union]]
             [ring.util.response :refer [redirect]]
+            [cheshire.core :as json]
             [buddy.sign.jwk :as jwk]
-            [buddy.sign.jwt :as jwt]))
+            [buddy.sign.jwt :as jwt]
+            [malli.core :as m]
+            [malli.error :as me]
+            [hypo.emissary.malli :as em]))
 
 (defn- request-idp-openid-config-req
   [openid-config-endpoint]
-  (client/get openid-config-endpoint {:as :json}))
+  (:body (client/get openid-config-endpoint {:as :json})))
 
 (defn- request-idp-openid-config
   [config-endpoint]
   (-> config-endpoint
-      request-idp-openid-config-req
-      (get-in [:body])))
+      request-idp-openid-config-req))
 
 (defn- get-cert-uri
   [config]
@@ -22,13 +25,12 @@
 
 (defn- request-idp-jwks-req
   [jwks-endpoint]
-  (client/get jwks-endpoint {:as :json}))
+  (:body (client/get jwks-endpoint {:as :json})))
 
 (defn- request-idp-jwks
   [cert-endpoint]
   (-> cert-endpoint
-      request-idp-jwks-req
-      (get-in [:body])))
+      request-idp-jwks-req))
 
 (defn- request-idp-settings
   [openid-config-uri]
@@ -38,7 +40,12 @@
     {:config openid-config
      :jwks jwks}))
 
-(defn gen-client-config
+(defn- assertive-validate [schema value]
+  (if-let [e (m/explain schema value)]
+    (throw (ex-info "Validation failed" (me/humanize e)))
+    true))
+
+(defn build-config
   "generate root configuration map. will raise if idp cannot be reached.
   Takes a map with the following keys:
 
@@ -71,53 +78,79 @@
   :trusted-audiences
   Other audiences that are allowed on the JWT expressed as a clojure set.
 
+  :post-login-redirect-uri-fn
+  A function that returns a URI where the user should be redirected after login.
+  Takes one arg, [state].
+
+  :tokens-request-failure-redirect-uri-fn
+  A function that returns a URI where the user should be redirected if the token request
+  returns exceptionally.
+  Takes two args, [error error-description]. Return a URL to which the user will be
+  redirected.
+
   :post-logout-redirect-uri
-  URI where user should be redirected after login.
+  URI where user should be redirected after logout.
   "
   [{:keys [openid-config-uri
-           redirect-uri
-           aud
-           iss
-           client-id
            insecure-mode?
-           scope
-           response-type
-           trusted-audiences
-           post-logout-redirect-uri]
+           response-type]
     :or {insecure-mode? false}
     :as config}]
+  {:pre [(assertive-validate em/InitialConfig config)]
+   :post [(assertive-validate em/CompleteConfig %)]}
   (binding [*assert* true]
     (let [config (merge config {:idp-settings (request-idp-settings openid-config-uri)})]
       (assert (= #{"code"} response-type)) ;; We currently only support the authorization code flow
-      (when-not (:insecure-mode? config)
+      (when-not insecure-mode?
         (assert (starts-with? (get-in config [:idp-settings :config :authorization_endpoint]) "https"))
         (assert (starts-with? (get-in config [:idp-settings :config :token_endpoint]) "https")))
       config)))
+
+(defn config->browser-config
+  "Given a complete config, select only the elements necessary for browser APIs to work."
+  ;; NOTE: When updating this function, ensure that every value returned here is safe
+  ;; to send over the wire to the browser.
+  [config]
+  {:post [(m/validate em/BrowserConfig %)]}
+  (merge {:idp-settings
+          {:config
+           {:authorization_endpoint
+            (-> config :idp-settings :config :authorization_endpoint)}}}
+         (select-keys
+          config [:aud
+                  :redirect-uri
+                  :scope
+                  :response-type])))
 
 (defn- find-key
   [kid keys]
   (first (filter (fn [v] (= (:kid v) kid)) keys)))
 
-(defn- request-id-token-req
-  [token-uri code redirect-uri client-id]
-  (client/post token-uri
-               {:form-params
-                {"code" code
-                 "redirect_uri" redirect-uri
-                 "grant_type" "authorization_code"
-                 "client_id" client-id}
-                :headers {"Content-Type" "application/x-www-form-urlencoded"}
-                :as :json}))
+(defn- request-tokens-req
+  [token-uri code redirect-uri client-id client-secret]
+  (:body
+   (client/post token-uri
+                {:form-params
+                 {"code" code
+                  "redirect_uri" redirect-uri
+                  "grant_type" "authorization_code"
+                  "client_id" client-id}
+                 :headers {"Content-Type" "application/x-www-form-urlencoded"}
+                 :basic-auth [client-id client-secret]
+                 :as :json})))
 
 (defn- get-id-token-uri
   [config]
   (get-in config [:idp-settings :config :token_endpoint]))
 
-(defn- request-id-token
-  [{:keys [redirect-uri code client-id] :as config}]
-  (let [token-uri (get-id-token-uri config)
-        result (request-id-token-req token-uri code redirect-uri client-id)]
-    (get-in result [:body])))
+(defn- unpack-exception [e]
+  (json/parse-string (:body (ex-data e)) keyword))
+
+(defn- request-tokens
+  [{:keys [redirect-uri code client-id client-secret] :as config}]
+  (let [token-uri (get-id-token-uri config)]
+    (try (request-tokens-req token-uri code redirect-uri client-id client-secret)
+         (catch Exception e (unpack-exception e)))))
 
 (defn- get-jwks
   [config]
@@ -153,21 +186,20 @@
 
 (defn- request-refresh-req
   [token-uri client-id refresh-token]
-  (client/post token-uri
-               {:form-params
-                {"refresh_token" refresh-token
-                 "client_id" client-id
-                 "grant_type" "refresh_token"}
-                :headers {"Content-Type" "application/x-www-form-urlencoded"}
-                :as :json}))
+  (:body (client/post token-uri
+                      {:form-params
+                       {"refresh_token" refresh-token
+                        "client_id" client-id
+                        "grant_type" "refresh_token"}
+                       :headers {"Content-Type" "application/x-www-form-urlencoded"}
+                       :as :json})))
 
 (defn exchange-tokens
   "Exchanges id token and access token for new tokens. Returns map if successful, or nil otherwise."
   [config refresh-token]
   (try
-    (let [token-uri (get-id-token-uri config)
-          result (request-refresh-req token-uri (:client-id config) refresh-token)]
-      (:body result))
+    (let [token-uri (get-id-token-uri config)]
+      (request-refresh-req token-uri (:client-id config) refresh-token))
     (catch Exception _)))
 
 (defn make-authentication-redirect-handler
@@ -179,20 +211,27 @@
   "
   [config save-session!]
   (binding [*assert* true]
+    ;; TODO: https://github.com/hypo-sh/emissary/issues/3
     (fn oauth-callback [req]
       (let [code (get-in req [:query-params "code"])
+            authentication-state (get-in req [:query-params "state"])
             _session_state (get-in req [:query-params "session_state"])
             {:keys [access_token
                     refresh_token
                     id_token
-                    refresh_expires_in]}
-            (request-id-token (merge config {:code code}))]
-        ;; TODO: https://github.com/hypo-sh/emissary/issues/3
-        (when (and (unsign-token config id_token)
-                   (unsign-token config access_token))
-          (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
-            (-> (redirect (:post-logout-redirect-uri config))
-                (assoc-in [:session :emissary/session-id] session-id))))))))
+                    refresh_expires_in
+                    error
+                    error_description
+                    error_uri]}
+            (request-tokens (merge config {:code code}))]
+        (if error
+          (redirect ((:tokens-request-failure-redirect-uri-fn config) error error_description error_uri))
+          ;; NOTE: Using when here is a bit weird. What about the nil case?
+          (when (and (unsign-token config id_token)
+                     (unsign-token config access_token))
+            (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
+              (-> (redirect ((:post-login-redirect-uri-fn config) authentication-state))
+                  (assoc-in [:session :emissary/session-id] session-id)))))))))
 
 (defn- get-end-session-endpoint
   [config]
