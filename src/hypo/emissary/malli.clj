@@ -4,7 +4,7 @@
 
 (def CompleteConfig
   [:map
-   [:tokens-request-failure-redirect-uri-fn [:=> [:cat string? string?] string?]]
+   [:tokens-request-failure-redirect-uri-fn [:=> [:cat string? string? string?] string?]]
    [:post-login-redirect-uri-fn [:=> [:cat string?] string?]]
    [:client-secret string?]
    [:openid-config-uri string?]
