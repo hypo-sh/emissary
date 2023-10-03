@@ -145,7 +145,6 @@
   [{:keys [redirect-uri code client-id client-secret] :as config}]
   (let [token-uri (get-id-token-uri config)]
     (try (request-tokens-req token-uri code redirect-uri client-id client-secret)
-         ;; TODO: Don't blindly catch here lol
          (catch Exception e (unpack-exception e)))))
 
 (defn- get-jwks
