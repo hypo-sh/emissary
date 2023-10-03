@@ -4,17 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [HEAD]
 
-### Changed
+### Added
 
- - Renamed `hypo.emissary/build-config` to `hypo.emissary/build-config`
- - Take two no dependencies:
-   - `metosin/malli`
-   - `com.github.eval/malli-select`
  - Add `hypo.emissary.malli` ns and create spec for configs
  - Add `hypo.emissary/config->browser-config`
  - Add `:tokens-request-redirect-fn` to config map
+ - Added two new dependencies:
+   - `metosin/malli`
+   - `com.github.eval/malli-select`
 
-## [HEAD]
+### Changed
+
+ - Renamed `hypo.emissary/build-config` to `hypo.emissary/build-config`
+ 
+## [f9b3abb778bf7c84d059ec03e862b4354dad55d6]
 
 ### Changed
 
