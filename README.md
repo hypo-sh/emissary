@@ -2,9 +2,20 @@
 
 Outsource user managment to an OIDC identity provider.
 
+Emissary makes it easy to enable your application to act as an OIDC client. It is
+identity provider-agnostic, meaning your application can use emissary to connect with any
+spec-compliant identity provider for user management.
+
 ## Status
 
 This is pre-alpha software currently used internally at Hypo. Expect breaking changes.
+
+### Supported identity providers
+
+Emissary aims to be 100% compliant with the [OIDC 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
+and [OAuth 2.0](https://datatracker.ietf.org/doc/html/rfc6749) specifications, so it should
+work with any spec-compliant identity provider. If you run into compatibility issues, pleas
+file a ticket.
 
 ### Supported flows
 
