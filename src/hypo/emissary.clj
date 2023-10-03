@@ -81,7 +81,7 @@
   :post-logout-redirect-uri
   URI where user should be redirected after login.
 
-  :authentication-error-redirect-fn
+  :token-request-redirect-fn
   A function that will be invoked if the tokens request returns exceptionally.
   Takes two args, [error error-description]. Return a URL to which the user will be
   redirected.
@@ -207,6 +207,7 @@
   "
   [config save-session!]
   (binding [*assert* true]
+    ;; TODO: https://github.com/hypo-sh/emissary/issues/3
     (fn oauth-callback [req]
       (let [code (get-in req [:query-params "code"])
             _session_state (get-in req [:query-params "session_state"])
@@ -220,15 +221,12 @@
                     error_uri]}
             (request-tokens (merge config {:code code}))]
         (if error
-          ;; TODO: post-logout-redirect-uri is not a good name for this
-          ;; TODO: Make this a user-configurable function
-          (redirect ((:authentication-error-redirect-fn config) error error_description error_uri))
-        ;; TODO: https://github.com/hypo-sh/emissary/issues/3
-        ;; NOTE: Using when here is a bit weird. What about the nil case?
+          (redirect ((:token-request-redirect-fn config) error error_description error_uri))
+          ;; NOTE: Using when here is a bit weird. What about the nil case?
           (when (and (unsign-token config id_token)
                      (unsign-token config access_token))
             (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
-          ;; TODO: post-logout-redirect-uri is not a good name for this
+            ;; TODO: post-logout-redirect-uri is not a good name for this
               (-> (redirect (:post-logout-redirect-uri config))
                   (assoc-in [:session :emissary/session-id] session-id)))))))))
 

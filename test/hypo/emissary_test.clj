@@ -124,7 +124,7 @@
           sut/request-idp-jwks-req
           request-idp-jwks-req-fn]
           (sut/build-config
-           {:authentication-error-redirect-fn
+           {:token-request-redirect-fn
             (fn [error error-description error-uri]
               (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
             :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
@@ -156,14 +156,14 @@
        jwks-response
        {:keys []}
        ;; TODO: rename for tokens
-       authentication-error-redirect-fn
+       token-request-redirect-fn
        (fn [error error-description error-uri]
          (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))]
    (with-redefs
     [sut/request-idp-openid-config-req (fn [_] oidc-config-response)
      sut/request-idp-jwks-req (fn [_] jwks-response)]
      (sut/build-config
-      {:authentication-error-redirect-fn authentication-error-redirect-fn
+      {:token-request-redirect-fn token-request-redirect-fn
        :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
        :redirect-uri "https://hypo.instance/oauth"
        :aud "hypo"
@@ -176,7 +176,7 @@
        :post-logout-redirect-uri "https://hypo.instance"
        :client-secret "fake-secret"}))
    :=
-   {:authentication-error-redirect-fn  authentication-error-redirect-fn
+   {:token-request-redirect-fn  token-request-redirect-fn
     :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
     :redirect-uri "https://hypo.instance/oauth"
     :aud "hypo"
