@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [HEAD]
 
+### Fixed
+
+- Fix function spec signature
+
+## [30dcc41bc92f9d5d08fc4bcb3b20ce8d93fdf993]
+
 ### Added
 
  - Add `hypo.emissary.malli` ns and create spec for configs
