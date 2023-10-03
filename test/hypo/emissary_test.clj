@@ -1,13 +1,38 @@
 (ns hypo.emissary-test
   (:require [hypo.emissary :as sut]
+            [hypo.emissary.malli :as em]
+            [malli.core :as m]
             [hypo.emissary.test-util :as tu]
             [hyperfiddle.rcf :refer [tests]]))
+
+(tests
+ "config->browser-config"
+ (let [example-config
+       {:idp-settings {:config {:authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"}}
+        :aud "hypo"
+        :redirect-uri "https://hypo.app"
+        :scope #{"oidc" "roles"}
+        :response-type #{"code"}
+        :secret-key "DO_NOT_REVEAL"}]
+   (sut/config->browser-config example-config)
+   :=
+   {:idp-settings {:config {:authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"}}
+    :aud "hypo"
+    :redirect-uri "https://hypo.app"
+    :scope #{"oidc" "roles"}
+    :response-type #{"code"}}
+
+   (m/validate em/BrowserConfig (sut/config->browser-config example-config))
+   :=
+   true))
 
 (defn wrap-oidc-test-config [overrides]
   (merge
    {:save-session! (fn [_sid _id-token _access-token _refresh-token])
+    :trusted-audiences #{"hypo"}
     :token_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/token"
     :authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"
+    :end_session_endpoint "http://localhost:8081/realms/test/protocol/openid-connect/logout"
     :insecure-mode? false
     :config-issuer "https://identity.provider/realms/main"
     :post-logout-redirect-uri "https://hypo.app"
@@ -25,7 +50,9 @@
 
     :id-token-issuer "https://identity.provider/realms/main"
     :id-token-aud "hypo"
-    :id-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}
+    :id-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)
+
+    :client-secret "fake-secret"}
    overrides))
 
 (defn test-make-authentication-redirect-handler
@@ -46,8 +73,10 @@
            response-type
            token_endpoint
            authorization_endpoint
+           end_session_endpoint
            trusted-audiences
-           post-logout-redirect-uri]}]
+           post-logout-redirect-uri
+           client-secret]}]
   (let [kid "123"
         jwk (tu/generate-jwk kid)
         id-token (tu/test-sign jwk
@@ -69,12 +98,14 @@
         config
         (with-redefs
          [sut/request-idp-openid-config-req
-          (fn [_] {:body {:token_endpoint token_endpoint
-                          :authorization_endpoint authorization_endpoint}})
+          (fn [_] {:token_endpoint token_endpoint
+                   :authorization_endpoint authorization_endpoint
+                   :end_session_endpoint end_session_endpoint})
           sut/request-idp-jwks-req
-          (fn [_] {:body jwks-response})]
-          (sut/gen-client-config
-           {:openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
+          (fn [_] jwks-response)]
+          (sut/build-config
+           {:authentication-error-redirect-fn (fn [_ _] "hypo.app/oops?error_description=meow")
+            :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
             :redirect-uri "https://hypo.instance/oauth"
             :aud config-aud
             :iss config-issuer
@@ -83,31 +114,35 @@
             :scope scope
             :response-type response-type
             :trusted-audiences trusted-audiences
-            :post-logout-redirect-uri post-logout-redirect-uri}))
+            :post-logout-redirect-uri post-logout-redirect-uri
+            :client-secret client-secret}))
         handler (sut/make-authentication-redirect-handler
                  config
                  save-session!)]
 
     (with-redefs
-     [sut/request-id-token-req (fn [_token-uri _code _redirect-uri _client-id]
-                                 {:body {:id_token id-token
-                                         :access_token access-token
-                                         :refresh_token refresh-token}})]
+     [sut/request-tokens-req (fn [_token-uri _code _redirect-uri _client-id _client-secret]
+                               {:id_token id-token
+                                :access_token access-token
+                                :refresh_token refresh-token})]
       (handler {:query-params {"code" "abc"
                                "session_state" ""}}))))
 
 (tests
- "gen-client-config"
+ "build-config"
  (let [oidc-config-response
        {:authorization_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/auth"
+        :end_session_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/logout"
         :token_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/token"}
        jwks-response
-       {:keys []}]
+       {:keys []}
+       authentication-error-redirect-fn (fn [_ _] "hypo.app/oops?error_description=meow")]
    (with-redefs
-    [sut/request-idp-openid-config-req (fn [_] {:body oidc-config-response})
-     sut/request-idp-jwks-req (fn [_] {:body jwks-response})]
-     (sut/gen-client-config
-      {:openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
+    [sut/request-idp-openid-config-req (fn [_] oidc-config-response)
+     sut/request-idp-jwks-req (fn [_] jwks-response)]
+     (sut/build-config
+      {:authentication-error-redirect-fn authentication-error-redirect-fn
+       :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
        :redirect-uri "https://hypo.instance/oauth"
        :aud "hypo"
        :iss "https://identity.provider/realms/main"
@@ -116,9 +151,11 @@
        :scope #{"openid" "roles"}
        :response-type #{"code"}
        :trusted-audiences #{"google"}
-       :post-logout-redirect-uri "https://hypo.instance"}))
+       :post-logout-redirect-uri "https://hypo.instance"
+       :client-secret "fake-secret"}))
    :=
-   {:openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
+   {:authentication-error-redirect-fn  authentication-error-redirect-fn
+    :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
     :redirect-uri "https://hypo.instance/oauth"
     :aud "hypo"
     :client-id "hypo"
@@ -129,7 +166,8 @@
     :idp-settings {:config oidc-config-response
                    :jwks jwks-response}
     :post-logout-redirect-uri "https://hypo.instance"
-    :trusted-audiences #{"google"}}))
+    :trusted-audiences #{"google"}
+    :client-secret "fake-secret"}))
 
 (tests
  "wrap-oidc succeeds"
@@ -149,9 +187,9 @@
 
  "wrap-oidc succeeds when JWT contains trusted audience"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:config-aud "hypo"
-                          :trusted-audiences #{"google"}
-                          :id-token-aud ["hypo" "google"]}))
+                                             {:config-aud "hypo"
+                                              :trusted-audiences #{"google"}
+                                              :id-token-aud ["hypo" "google"]}))
 
  :=
  {:headers {"Location" "https://hypo.app"}
@@ -160,7 +198,7 @@
   :session {:emissary/session-id _}}
 
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:response-type #{"code" "token"}}))
+                                             {:response-type #{"code" "token"}}))
  :throws
  java.lang.AssertionError)
 
@@ -170,7 +208,7 @@
  ;; Spec-tests START
  "3.1.2 Communication with the Authorization Endpoint MUST utilize TLS"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:authorization_endpoint "http://non-https.uri"}))
+                                             {:authorization_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
  "3.1.2.1 scope REQUIRED"
@@ -193,7 +231,7 @@
 
  "3.1.3 Communication with the Token Endpoint MUST utilize TLS"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:token_endpoint "http://non-https.uri"}))
+                                             {:token_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
  "3.1.3.1 If the Client is a Confidential Client, then it MUST authenticate to the Token Endpoint using the authentication method registered for its client_id, as described in Section 9"
@@ -204,8 +242,8 @@
 
  "3.1.3.7.2 The Issuer Identifier for the OpenID Provider (which is typically obtained during Discovery) MUST exactly match the value of the iss (issuer) Claim"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:config-issuer "https://identity.provider/realms/main"
-                          :id-token-issuer "https://attacking.provider/realms/main"}))
+                                             {:config-issuer "https://identity.provider/realms/main"
+                                              :id-token-issuer "https://attacking.provider/realms/main"}))
  := nil
 
  "3.1.3.7.3 The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience"
@@ -213,8 +251,8 @@
 
  "3.1.3.7.3 The ID Token MUST be rejected if the ID Token does not list the Client as a valid audience,"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:config-aud "hypo"
-                          :id-token-aud "attacker"}))
+                                             {:config-aud "hypo"
+                                              :id-token-aud "attacker"}))
  := nil
 
  ;; This is contentious
@@ -222,8 +260,8 @@
  ;; - https://bitbucket.org/openid/connect/pull-requests/340/errata-clarified-that-azp-does-not-occur
  "3.1.3.7.3 or if it contains additional audiences not trusted by the Client"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:config-aud "hypo"
-                          :id-token-aud ["hypo" "attacker"]}))
+                                             {:config-aud "hypo"
+                                              :id-token-aud ["hypo" "attacker"]}))
  := nil
 
  ;; Contentious; see above
@@ -242,7 +280,7 @@
 
  "3.1.3.7.9 The current time MUST be before the time represented by the exp Claim"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                         {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}))
+                                             {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}))
  := nil
 
  "3.1.3.7.11 If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present and its value checked to verify that it is the same value as the one that was sent in the Authentication Request"

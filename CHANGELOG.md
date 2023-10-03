@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+ - Renamed `hypo.emissary/build-config` to `hypo.emissary/build-config`
+ - Take two no dependencies:
+   - `metosin/malli`
+   - `com.github.eval/malli-select`
+ - Add `hypo.emissary.malli` ns and create spec for configs
+ - Add `hypo.emissary/config->browser-config`
+
+## [HEAD]
+
+### Changed
+
  - Renamed `emissary.core` to `hypo.emissary`
  - Renamed `emissary.test-util` to `hypo.emissary.test-util`
  - Renamed `emissary.core-test` to `hypo.emissary-test`
