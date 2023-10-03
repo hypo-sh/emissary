@@ -78,13 +78,18 @@
   :trusted-audiences
   Other audiences that are allowed on the JWT expressed as a clojure set.
 
-  :post-logout-redirect-uri
-  URI where user should be redirected after login.
+  :post-login-redirect-uri-fn
+  A function that returns a URI where the user should be redirected after login.
+  Takes one arg, [state].
 
-  :tokens-request-redirect-fn
-  A function that will be invoked if the tokens request returns exceptionally.
+  :tokens-request-failure-redirect-uri-fn
+  A function that returns a URI where the user should be redirected if the token request
+  returns exceptionally.
   Takes two args, [error error-description]. Return a URL to which the user will be
   redirected.
+
+  :post-logout-redirect-uri
+  URI where user should be redirected after logout.
   "
   [{:keys [openid-config-uri
            insecure-mode?
@@ -209,24 +214,23 @@
     ;; TODO: https://github.com/hypo-sh/emissary/issues/3
     (fn oauth-callback [req]
       (let [code (get-in req [:query-params "code"])
+            authentication-state (get-in req [:query-params "state"])
             _session_state (get-in req [:query-params "session_state"])
             {:keys [access_token
                     refresh_token
                     id_token
                     refresh_expires_in
-
                     error
                     error_description
                     error_uri]}
             (request-tokens (merge config {:code code}))]
         (if error
-          (redirect ((:tokens-request-redirect-fn config) error error_description error_uri))
+          (redirect ((:tokens-request-failure-redirect-uri-fn config) error error_description error_uri))
           ;; NOTE: Using when here is a bit weird. What about the nil case?
           (when (and (unsign-token config id_token)
                      (unsign-token config access_token))
             (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
-            ;; TODO: post-logout-redirect-uri is not a good name for this
-              (-> (redirect (:post-logout-redirect-uri config))
+              (-> (redirect ((:post-login-redirect-uri-fn config) authentication-state))
                   (assoc-in [:session :emissary/session-id] session-id)))))))))
 
 (defn- get-end-session-endpoint

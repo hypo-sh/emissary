@@ -124,9 +124,12 @@
           sut/request-idp-jwks-req
           request-idp-jwks-req-fn]
           (sut/build-config
-           {:tokens-request-redirect-fn
+           {:tokens-request-failure-redirect-uri-fn
             (fn [error error-description error-uri]
               (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
+            :post-login-redirect-uri-fn
+            (fn [state]
+              (str "https://hypo.app/" state))
             :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
             :redirect-uri "https://hypo.instance/oauth"
             :aud config-aud
@@ -145,6 +148,7 @@
     (with-redefs
      [sut/request-tokens-req request-tokens-req-fn]
       (handler {:query-params {"code" "abc"
+                               "state" "saved-state"
                                "session_state" ""}}))))
 
 (tests
@@ -155,14 +159,20 @@
         :token_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/token"}
        jwks-response
        {:keys []}
-       tokens-request-redirect-fn
+       tokens-request-failure-redirect-uri-fn
        (fn [error error-description error-uri]
-         (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))]
+         (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
+       post-login-redirect-uri-fn
+                   (fn [state]
+              (str "https://hypo.app/" state))
+
+       ]
    (with-redefs
     [sut/request-idp-openid-config-req (fn [_] oidc-config-response)
      sut/request-idp-jwks-req (fn [_] jwks-response)]
      (sut/build-config
-      {:tokens-request-redirect-fn tokens-request-redirect-fn
+      {:tokens-request-failure-redirect-uri-fn tokens-request-failure-redirect-uri-fn
+       :post-login-redirect-uri-fn post-login-redirect-uri-fn
        :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
        :redirect-uri "https://hypo.instance/oauth"
        :aud "hypo"
@@ -175,7 +185,8 @@
        :post-logout-redirect-uri "https://hypo.instance"
        :client-secret "fake-secret"}))
    :=
-   {:tokens-request-redirect-fn  tokens-request-redirect-fn
+   {:tokens-request-failure-redirect-uri-fn  tokens-request-failure-redirect-uri-fn
+    :post-login-redirect-uri-fn post-login-redirect-uri-fn
     :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
     :redirect-uri "https://hypo.instance/oauth"
     :aud "hypo"
@@ -193,7 +204,7 @@
 (tests
  "wrap-oidc succeeds"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config {}))
- := {:headers {"Location" "https://hypo.app"}
+ := {:headers {"Location" "https://hypo.app/saved-state"}
      :status 302
      :body ""
      :session {:emissary/session-id _}}
@@ -201,7 +212,7 @@
  "wrap-oidc succeeds when JWT aud is list"
  (test-make-authentication-redirect-handler (wrap-oidc-test-config {:aud ["hypo"]}))
  :=
- {:headers {"Location" "https://hypo.app"}
+ {:headers {"Location" "https://hypo.app/saved-state"}
   :status 302
   :body ""
   :session {:emissary/session-id _}}
@@ -213,7 +224,7 @@
                                               :id-token-aud ["hypo" "google"]}))
 
  :=
- {:headers {"Location" "https://hypo.app"}
+ {:headers {"Location" "https://hypo.app/saved-state"}
   :status 302
   :body ""
   :session {:emissary/session-id _}}

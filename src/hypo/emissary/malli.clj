@@ -4,7 +4,8 @@
 
 (def CompleteConfig
   [:map
-   [:tokens-request-redirect-fn [:=> [:cat string? string?] string?]]
+   [:tokens-request-failure-redirect-uri-fn [:=> [:cat string? string?] string?]]
+   [:post-login-redirect-uri-fn [:=> [:cat string?] string?]]
    [:client-secret string?]
    [:openid-config-uri string?]
    [:redirect-uri string?]
@@ -40,7 +41,9 @@
               :scope
               :response-type
               :trusted-audiences
-              :post-logout-redirect-uri]))
+              :post-logout-redirect-uri
+              :tokens-request-failure-redirect-uri-fn
+              :post-login-redirect-uri-fn]))
 
 (def BrowserConfig
   (mu/closed-schema
