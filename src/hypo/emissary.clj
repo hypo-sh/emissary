@@ -221,12 +221,13 @@
                     refresh_expires_in
 
                     error
-                    error_description]}
+                    error_description
+                    error_uri]}
             (request-tokens (merge config {:code code}))]
         (if error
           ;; TODO: post-logout-redirect-uri is not a good name for this
           ;; TODO: Make this a user-configurable function
-          (redirect ((:authentication-error-redirect-fn config) "meow" error error_description))
+          (redirect ((:authentication-error-redirect-fn config) error error_description error_uri))
         ;; TODO: https://github.com/hypo-sh/emissary/issues/3
         ;; NOTE: Using when here is a bit weird. What about the nil case?
           (when (and (unsign-token config id_token)

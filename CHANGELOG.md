@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
    - `com.github.eval/malli-select`
  - Add `hypo.emissary.malli` ns and create spec for configs
  - Add `hypo.emissary/config->browser-config`
+ - Add `:authentication-error-redirect-fn` to config map
 
 ## [HEAD]
 

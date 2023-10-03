@@ -26,85 +26,107 @@
    :=
    true))
 
-(defn wrap-oidc-test-config [overrides]
-  (merge
-   {:save-session! (fn [_sid _id-token _access-token _refresh-token])
-    :trusted-audiences #{"hypo"}
-    :token_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/token"
-    :authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"
-    :end_session_endpoint "http://localhost:8081/realms/test/protocol/openid-connect/logout"
-    :insecure-mode? false
-    :config-issuer "https://identity.provider/realms/main"
-    :post-logout-redirect-uri "https://hypo.app"
-    :config-aud "hypo"
-    :scope #{"oidc" "roles"}
-    :response-type #{"code"}
+(defn wrap-oidc-test-config
+  [{:keys [access-token-issuer
+           access-token-aud
+           access-token-exp
 
-    :access-token-issuer "https://identity.provider/realms/main"
-    :access-token-aud "hypo"
-    :access-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)
+           refresh-token-issuer
+           refresh-token-aud
+           refresh-token-exp
 
-    :refresh-token-issuer "https://identity.provider/realms/main"
-    :refresh-token-aud "hypo"
-    :refresh-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)
+           id-token-issuer
+           id-token-aud
+           id-token-exp
 
-    :id-token-issuer "https://identity.provider/realms/main"
-    :id-token-aud "hypo"
-    :id-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)
+           token_endpoint
+           authorization_endpoint
+           end_session_endpoint]
+    :or {access-token-issuer "https://identity.provider/realms/main"
+         access-token-aud "hypo"
+         access-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)
 
-    :client-secret "fake-secret"}
-   overrides))
+         refresh-token-issuer "https://identity.provider/realms/main"
+         refresh-token-aud "hypo"
+         refresh-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)
+
+         id-token-issuer "https://identity.provider/realms/main"
+         id-token-aud "hypo"
+         id-token-exp (.plus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)
+
+         token_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/token"
+         authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"
+         end_session_endpoint "http://localhost:8081/realms/test/protocol/openid-connect/logout"}
+    :as overrides}]
+  (let [kid "123"
+        jwk (tu/generate-jwk kid)
+        jwks-response {:keys [jwk]}
+
+        id-token
+        (tu/test-sign jwk
+                      kid
+                      {:iss id-token-issuer
+                       :aud id-token-aud
+                       :exp id-token-exp})
+        access-token
+        (tu/test-sign jwk
+                      kid
+                      {:iss access-token-issuer
+                       :aud access-token-aud
+                       :exp access-token-exp})
+        refresh-token
+        (tu/test-sign jwk
+                      kid
+                      {:iss refresh-token-issuer
+                       :aud refresh-token-aud
+                       :exp refresh-token-exp})]
+    (merge
+     {:save-session! (fn [_sid _id-token _access-token _refresh-token])
+      :trusted-audiences #{"hypo"}
+      :insecure-mode? false
+      :config-issuer "https://identity.provider/realms/main"
+      :post-logout-redirect-uri "https://hypo.app"
+      :config-aud "hypo"
+      :scope #{"oidc" "roles"}
+      :response-type #{"code"}
+      :client-secret "fake-secret"
+      :request-idp-openid-config-req-fn
+      (fn request-idp-openid-config-req [_]
+        {:token_endpoint token_endpoint
+         :authorization_endpoint authorization_endpoint
+         :end_session_endpoint end_session_endpoint})
+      :request-tokens-req-fn
+      (fn request-token-req [_token-uri _code _redirect-uri _client-id _client-secret]
+        {:id_token id-token
+         :access_token access-token
+         :refresh_token refresh-token})
+      :request-idp-jwks-req-fn
+      (fn request-idp-jwks-req [_] jwks-response)}
+     overrides)))
 
 (defn test-make-authentication-redirect-handler
   [{:keys [save-session!
            config-issuer
            config-aud
-           id-token-issuer
-           id-token-aud
-           id-token-exp
-           access-token-issuer
-           access-token-aud
-           access-token-exp
-           refresh-token-issuer
-           refresh-token-aud
-           refresh-token-exp
            insecure-mode?
            scope
            response-type
-           token_endpoint
-           authorization_endpoint
-           end_session_endpoint
            trusted-audiences
            post-logout-redirect-uri
-           client-secret]}]
-  (let [kid "123"
-        jwk (tu/generate-jwk kid)
-        id-token (tu/test-sign jwk
-                               kid
-                               {:iss id-token-issuer
-                                :aud id-token-aud
-                                :exp id-token-exp})
-        access-token (tu/test-sign jwk
-                                   kid
-                                   {:iss access-token-issuer
-                                    :aud access-token-aud
-                                    :exp access-token-exp})
-        refresh-token (tu/test-sign jwk
-                                    kid
-                                    {:iss refresh-token-issuer
-                                     :aud refresh-token-aud
-                                     :exp refresh-token-exp})
-        jwks-response {:keys [jwk]}
-        config
+           client-secret
+           request-idp-openid-config-req-fn
+           request-tokens-req-fn
+           request-idp-jwks-req-fn]}]
+  (let [config
         (with-redefs
          [sut/request-idp-openid-config-req
-          (fn [_] {:token_endpoint token_endpoint
-                   :authorization_endpoint authorization_endpoint
-                   :end_session_endpoint end_session_endpoint})
+          request-idp-openid-config-req-fn
           sut/request-idp-jwks-req
-          (fn [_] jwks-response)]
+          request-idp-jwks-req-fn]
           (sut/build-config
-           {:authentication-error-redirect-fn (fn [_ _] "hypo.app/oops?error_description=meow")
+           {:authentication-error-redirect-fn
+            (fn [error error-description error-uri]
+              (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
             :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
             :redirect-uri "https://hypo.instance/oauth"
             :aud config-aud
@@ -121,10 +143,7 @@
                  save-session!)]
 
     (with-redefs
-     [sut/request-tokens-req (fn [_token-uri _code _redirect-uri _client-id _client-secret]
-                               {:id_token id-token
-                                :access_token access-token
-                                :refresh_token refresh-token})]
+     [sut/request-tokens-req request-tokens-req-fn]
       (handler {:query-params {"code" "abc"
                                "session_state" ""}}))))
 
@@ -136,7 +155,10 @@
         :token_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/token"}
        jwks-response
        {:keys []}
-       authentication-error-redirect-fn (fn [_ _] "hypo.app/oops?error_description=meow")]
+       ;; TODO: rename for tokens
+       authentication-error-redirect-fn
+       (fn [error error-description error-uri]
+         (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))]
    (with-redefs
     [sut/request-idp-openid-config-req (fn [_] oidc-config-response)
      sut/request-idp-jwks-req (fn [_] jwks-response)]
@@ -200,7 +222,20 @@
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
                                              {:response-type #{"code" "token"}}))
  :throws
- java.lang.AssertionError)
+ java.lang.AssertionError
+
+ "request-tokens returns anomalously"
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config
+   {:request-tokens-req-fn
+    (fn request-tokens-req [_token-uri _code _redirect-uri _client-id _client-secret]
+      {:error "invalid_request_uri"
+       :error_description "something+went+wrong"
+       :error_uri "error.uri"})}))
+ :=
+ {:status 302
+  :headers {"Location" "hypo.app/login-failure?error=invalid_request_uri&description=something+went+wrong&error_uri=error.uri"}
+  :body ""})
 
 (tests
  "Tests for https://openid.net/specs/openid-connect-core-1_0.html"
