@@ -81,7 +81,7 @@
   :post-logout-redirect-uri
   URI where user should be redirected after login.
 
-  :token-request-redirect-fn
+  :tokens-request-redirect-fn
   A function that will be invoked if the tokens request returns exceptionally.
   Takes two args, [error error-description]. Return a URL to which the user will be
   redirected.
@@ -221,7 +221,7 @@
                     error_uri]}
             (request-tokens (merge config {:code code}))]
         (if error
-          (redirect ((:token-request-redirect-fn config) error error_description error_uri))
+          (redirect ((:tokens-request-redirect-fn config) error error_description error_uri))
           ;; NOTE: Using when here is a bit weird. What about the nil case?
           (when (and (unsign-token config id_token)
                      (unsign-token config access_token))
