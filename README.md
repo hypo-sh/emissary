@@ -9,7 +9,7 @@ This is pre-alpha software currently used internally at Hypo. Expect breaking ch
 ### Supported flows
 
 | Flow | Supported? |
----------------------
+| ---- | ---------- |
 | Authorization | Yes |
 | Implicit | No |
 | Hybrid | No |
@@ -21,7 +21,7 @@ Please open an issue if you'd like to see support for an unsupported flow.
 ### Client authentication strategies
 
 | Strategy | Supported? |
--------------------------
+| -------- | ---------- |
 | `client_secret_basic` | Yes |
 | `client_secret_post` | No |
 | `client_secret_jwt` | No |
