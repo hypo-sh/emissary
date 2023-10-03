@@ -131,11 +131,6 @@
                   "grant_type" "authorization_code"
                   "client_id" client-id}
                  :headers {"Content-Type" "application/x-www-form-urlencoded"}
-                ;; TODO: get from config
-                ;; TODO: Why does signin work, even with an invalid client secret? WTF?
-                ;; TODO: Make note that we currently only support CLIENT_SECRET_BASIC auth method
-                ;; https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
-
                  :basic-auth [client-id client-secret]
                  :as :json})))
 
