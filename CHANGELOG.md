@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [HEAD]
 
+### Changed
+
+- Renamed `hypo.emissary/build-config` to `hypo.emissary/download-remote-config`
+
+## [8db2f93c38e39c54bfe31026fec84ce2adadca6b]
+
 ### Fixed
 
 - Fix function spec signature
