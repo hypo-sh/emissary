@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [HEAD]
 
+### Added
+
+- Add `:client-base-uri` to config. `tokens-request-failure-redirect-uri-fn` and
+  `post-login-redirect-uri-fn` now each take this URI as an initial argument.
+
+## [cd994050cabaa80b4ddc8ceb98ace6be61b50d9f]
+
 ### Changed
 
 - Renamed `hypo.emissary/build-config` to `hypo.emissary/download-remote-config`
