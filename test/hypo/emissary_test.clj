@@ -123,7 +123,7 @@
           request-idp-openid-config-req-fn
           sut/request-idp-jwks-req
           request-idp-jwks-req-fn]
-          (sut/build-config
+          (sut/download-remote-config
            {:tokens-request-failure-redirect-uri-fn
             (fn [error error-description error-uri]
               (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
@@ -152,7 +152,7 @@
                                "session_state" ""}}))))
 
 (tests
- "build-config"
+ "download-remote-config"
  (let [oidc-config-response
        {:authorization_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/auth"
         :end_session_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/logout"
@@ -170,7 +170,7 @@
    (with-redefs
     [sut/request-idp-openid-config-req (fn [_] oidc-config-response)
      sut/request-idp-jwks-req (fn [_] jwks-response)]
-     (sut/build-config
+     (sut/download-remote-config
       {:tokens-request-failure-redirect-uri-fn tokens-request-failure-redirect-uri-fn
        :post-login-redirect-uri-fn post-login-redirect-uri-fn
        :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"

@@ -45,8 +45,11 @@
     (throw (ex-info "Validation failed" (me/humanize e)))
     true))
 
-(defn build-config
-  "generate root configuration map. will raise if idp cannot be reached.
+(defn download-remote-config
+  "Given an emissary config map, reach out to the Identity Provider to fetch
+  its dynamic configuration information. Returns a new config map augmented with
+  additional configuration keys.
+
   Takes a map with the following keys:
 
   :openid-config-uri
