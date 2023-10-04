@@ -82,6 +82,7 @@
                        :exp refresh-token-exp})]
     (merge
      {:save-session! (fn [_sid _id-token _access-token _refresh-token])
+      :client-base-uri "https://hypo.app"
       :trusted-audiences #{"hypo"}
       :insecure-mode? false
       :config-issuer "https://identity.provider/realms/main"
@@ -125,11 +126,12 @@
           request-idp-jwks-req-fn]
           (sut/download-remote-config
            {:tokens-request-failure-redirect-uri-fn
-            (fn [error error-description error-uri]
-              (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
+            (fn [client-base-uri error error-description error-uri]
+              (str client-base-uri "/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
             :post-login-redirect-uri-fn
-            (fn [state]
-              (str "https://hypo.app/" state))
+            (fn [client-base-uri state]
+              (str client-base-uri "/" state))
+            :client-base-uri "https://hypo.app"
             :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
             :redirect-uri "https://hypo.instance/oauth"
             :aud config-aud
@@ -160,19 +162,19 @@
        jwks-response
        {:keys []}
        tokens-request-failure-redirect-uri-fn
-       (fn [error error-description error-uri]
-         (str "hypo.app/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
+       (fn [client-base-uri error error-description error-uri]
+         (str client-base-uri "/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
        post-login-redirect-uri-fn
-                   (fn [state]
-              (str "https://hypo.app/" state))
+       (fn [client-base-uri state]
+         (str client-base-uri "/" state))]
 
-       ]
    (with-redefs
     [sut/request-idp-openid-config-req (fn [_] oidc-config-response)
      sut/request-idp-jwks-req (fn [_] jwks-response)]
      (sut/download-remote-config
       {:tokens-request-failure-redirect-uri-fn tokens-request-failure-redirect-uri-fn
        :post-login-redirect-uri-fn post-login-redirect-uri-fn
+       :client-base-uri "https://hypo.app"
        :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
        :redirect-uri "https://hypo.instance/oauth"
        :aud "hypo"
@@ -187,6 +189,7 @@
    :=
    {:tokens-request-failure-redirect-uri-fn  tokens-request-failure-redirect-uri-fn
     :post-login-redirect-uri-fn post-login-redirect-uri-fn
+    :client-base-uri "https://hypo.app"
     :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
     :redirect-uri "https://hypo.instance/oauth"
     :aud "hypo"
@@ -244,7 +247,7 @@
        :error_uri "error.uri"})}))
  :=
  {:status 302
-  :headers {"Location" "hypo.app/login-failure?error=invalid_request_uri&description=something+went+wrong&error_uri=error.uri"}
+  :headers {"Location" "https://hypo.app/login-failure?error=invalid_request_uri&description=something+went+wrong&error_uri=error.uri"}
   :body ""})
 
 (tests

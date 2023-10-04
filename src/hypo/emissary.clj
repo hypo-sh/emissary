@@ -68,6 +68,9 @@
   :client-id
   OIDC client ID of your application. Should match :aud.
 
+  :client-base-uri
+  Base URI of client application. Include protocol. Do not include trailing slash.
+
   :insecure-mode?
   When set to true, disables various security checks. Do not use in production.
 
@@ -83,12 +86,12 @@
 
   :post-login-redirect-uri-fn
   A function that returns a URI where the user should be redirected after login.
-  Takes one arg, [state].
+  Takes one arg, [client-base-uri state].
 
   :tokens-request-failure-redirect-uri-fn
   A function that returns a URI where the user should be redirected if the token request
   returns exceptionally.
-  Takes two args, [error error-description]. Return a URL to which the user will be
+  Takes two args, [client-base-uri error error-description]. Return a URL to which the user will be
   redirected.
 
   :post-logout-redirect-uri
@@ -219,6 +222,7 @@
       (let [code (get-in req [:query-params "code"])
             authentication-state (get-in req [:query-params "state"])
             _session_state (get-in req [:query-params "session_state"])
+            client-base-uri (:client-base-uri config)
             {:keys [access_token
                     refresh_token
                     id_token
@@ -228,12 +232,12 @@
                     error_uri]}
             (request-tokens (merge config {:code code}))]
         (if error
-          (redirect ((:tokens-request-failure-redirect-uri-fn config) error error_description error_uri))
+          (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error_description error_uri))
           ;; NOTE: Using when here is a bit weird. What about the nil case?
           (when (and (unsign-token config id_token)
                      (unsign-token config access_token))
             (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
-              (-> (redirect ((:post-login-redirect-uri-fn config) authentication-state))
+              (-> (redirect ((:post-login-redirect-uri-fn config) client-base-uri authentication-state))
                   (assoc-in [:session :emissary/session-id] session-id)))))))))
 
 (defn- get-end-session-endpoint
