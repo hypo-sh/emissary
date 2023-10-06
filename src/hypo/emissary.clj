@@ -165,34 +165,35 @@
 ;; TODO:
 ;; Get issuer from IDP config: https://cognito-idp.us-east-2.amazonaws.com/us-east-2_kfLiNedox/.well-known/openid-configuration
 (defn- unsign-jwt
-  [config jwt]
+  [config claims jwt]
   (let [ks (get-jwks config)
-        iss (:iss config)
-        aud (:aud config)
         {:keys [alg _typ kid]} (jwt/decode-header jwt)
         key (find-key kid ks)
         pubkey (jwk/public-key key)]
     (try
-      (jwt/unsign jwt pubkey {:alg alg
-                              :iss iss
-                              :aud aud})
+      (jwt/unsign jwt pubkey (merge {:alg alg} claims))
       (catch Exception e
         (let [error (ex-message e)]
           {:error "unsign_error"
            :error-description error})))))
 
 (defn unsign-token
+  ;; TODO: Add note that you should use token-specific fns here
   "Validate token. If passes, return clojure object representing jwt. Returns map containing :error and :error-description otherwise."
-  [{:keys [trusted-audiences aud] :as config} token]
-  (when-let [unsign-result (unsign-jwt config token)]
+  [{:keys [trusted-audiences aud] :as config} claims token]
+  (when-let [unsign-result (unsign-jwt config claims token)]
     (if (:error unsign-result)
       unsign-result
+      ;; TODO: Look at spec. If this only applies to id tokens, then move this logic there
       (let [jwt-aud (:aud unsign-result)
             jwt-aud
             (into #{}
-                  (if (coll? jwt-aud)
-                    (into #{} jwt-aud)
-                    #{jwt-aud}))
+                  (cond (coll? jwt-aud)
+                        (into #{} jwt-aud)
+                        (nil? jwt-aud)
+                        #{}
+                        :else
+                        #{jwt-aud}))
             all-trusted-audiences (union #{aud} trusted-audiences)]
         (when (empty? (difference jwt-aud all-trusted-audiences))
           unsign-result)))))
@@ -201,8 +202,12 @@
   ;; NOTE:
   ;; Access tokens don't always have :aud claims. Buddy sign's semantics are backward IMO;
   ;; it validates :aud claims if :aud is
-  (let [config (select-keys config [:iss :trusted-audiences :idp-settings])]
-    (unsign-token config token)))
+;; TODO: Look at spec; ensure that the correc claims are being verified here
+  (unsign-token config (select-keys config [:iss]) token))
+
+;; TODO: Look at spec; ensure that the correc claims are being verified here
+(defn unsign-id-token [config token]
+  (unsign-token config (select-keys config [:iss :aud]) token))
 
 (defn- request-refresh-req
   [token-uri client-id refresh-token]
@@ -251,10 +256,9 @@
                         error_description
                         error_uri]}
                 (request-tokens (merge config {:code code}))]
-            (println "RT" refresh_token)
             (if error
               (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error_description error_uri))
-              (let [id-token-unsign-result (unsign-token config id_token)]
+              (let [id-token-unsign-result (unsign-token config (select-keys config [:iss :aud]) id_token)]
                 (cond (:error id-token-unsign-result)
                       (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
                       :else
