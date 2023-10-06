@@ -123,7 +123,7 @@
            {:authorization_endpoint
             (-> config :idp-settings :config :authorization_endpoint)}}}
          (select-keys
-          config [:aud
+          config [:client-id
                   :redirect-uri
                   :scope
                   :response-type])))
@@ -162,6 +162,8 @@
   [config]
   (get-in config [:idp-settings :jwks :keys]))
 
+;; TODO:
+;; Get issuer from IDP config: https://cognito-idp.us-east-2.amazonaws.com/us-east-2_kfLiNedox/.well-known/openid-configuration
 (defn- unsign-jwt
   [config jwt]
   (let [ks (get-jwks config)
@@ -174,21 +176,33 @@
       (jwt/unsign jwt pubkey {:alg alg
                               :iss iss
                               :aud aud})
-      (catch Exception _))))
+      (catch Exception e
+        (let [error (ex-message e)]
+          {:error "unsign_error"
+           :error-description error})))))
 
 (defn unsign-token
-  "Validate id token. If passes, return clojure object representing id jwt. Returns nil otherwise."
-  [{:keys [trusted-audiences aud] :as config} id_token]
-  (when-let [unsigned-jwt (unsign-jwt config id_token)]
-    (let [jwt-aud (:aud unsigned-jwt)
-          jwt-aud
-          (into #{}
-                (if (coll? jwt-aud)
-                  (into #{} jwt-aud)
-                  #{jwt-aud}))
-          all-trusted-audiences (union #{aud} trusted-audiences)]
-      (when (empty? (difference jwt-aud all-trusted-audiences))
-        unsigned-jwt))))
+  "Validate token. If passes, return clojure object representing jwt. Returns map containing :error and :error-description otherwise."
+  [{:keys [trusted-audiences aud] :as config} token]
+  (when-let [unsign-result (unsign-jwt config token)]
+    (if (:error unsign-result)
+      unsign-result
+      (let [jwt-aud (:aud unsign-result)
+            jwt-aud
+            (into #{}
+                  (if (coll? jwt-aud)
+                    (into #{} jwt-aud)
+                    #{jwt-aud}))
+            all-trusted-audiences (union #{aud} trusted-audiences)]
+        (when (empty? (difference jwt-aud all-trusted-audiences))
+          unsign-result)))))
+
+(defn unsign-access-token [config token]
+  ;; NOTE:
+  ;; Access tokens don't always have :aud claims. Buddy sign's semantics are backward IMO;
+  ;; it validates :aud claims if :aud is
+  (let [config (select-keys config [:iss :trusted-audiences :idp-settings])]
+    (unsign-token config token)))
 
 (defn- request-refresh-req
   [token-uri client-id refresh-token]
@@ -206,6 +220,7 @@
   (try
     (let [token-uri (get-id-token-uri config)]
       (request-refresh-req token-uri (:client-id config) refresh-token))
+    ;; TODO: Return useful error
     (catch Exception _)))
 
 (defn make-authentication-redirect-handler
@@ -219,26 +234,33 @@
   (binding [*assert* true]
     ;; TODO: https://github.com/hypo-sh/emissary/issues/3
     (fn oauth-callback [req]
-      (let [code (get-in req [:query-params "code"])
-            authentication-state (get-in req [:query-params "state"])
-            _session_state (get-in req [:query-params "session_state"])
-            client-base-uri (:client-base-uri config)
-            {:keys [access_token
-                    refresh_token
-                    id_token
-                    refresh_expires_in
-                    error
-                    error_description
-                    error_uri]}
-            (request-tokens (merge config {:code code}))]
+      (let [error (-> req :params :error)
+            error-description (-> req :params :error_description)
+            client-base-uri (:client-base-uri config)]
         (if error
-          (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error_description error_uri))
-          ;; NOTE: Using when here is a bit weird. What about the nil case?
-          (when (and (unsign-token config id_token)
-                     (unsign-token config access_token))
-            (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
-              (-> (redirect ((:post-login-redirect-uri-fn config) client-base-uri authentication-state))
-                  (assoc-in [:session :emissary/session-id] session-id)))))))))
+          ;; TODO: Make new function for handling this
+          (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error-description ""))
+          (let [code (get-in req [:query-params "code"])
+                authentication-state (get-in req [:query-params "state"])
+                _session_state (get-in req [:query-params "session_state"])
+                {:keys [access_token
+                        refresh_token
+                        id_token
+                        refresh_expires_in
+                        error
+                        error_description
+                        error_uri]}
+                (request-tokens (merge config {:code code}))]
+            (println "RT" refresh_token)
+            (if error
+              (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error_description error_uri))
+              (let [id-token-unsign-result (unsign-token config id_token)]
+                (cond (:error id-token-unsign-result)
+                      (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
+                      :else
+                      (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
+                        (-> (redirect ((:post-login-redirect-uri-fn config) client-base-uri authentication-state))
+                            (assoc-in [:session :emissary/session-id] session-id))))))))))))
 
 (defn- get-end-session-endpoint
   [config]

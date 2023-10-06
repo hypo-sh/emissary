@@ -24,6 +24,7 @@
       [:map
        [:authorization_endpoint string?]
        [:token_endpoint string?]
+       #_
        [:end_session_endpoint string?]]]
      [:jwks
       [:map
@@ -51,7 +52,7 @@
   (mu/closed-schema
    (ms/select CompleteConfig
               [:redirect-uri
-               :aud
+               :client-id
                :scope
                :response-type
                {:idp-settings
