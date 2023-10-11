@@ -10,8 +10,6 @@
             [malli.error :as me]
             [hypo.emissary.malli :as em]))
 
-;; TODO: User provides issuer, from which configure URI, etc are derived
-;;
 (defn- request-idp-openid-config-req
   [openid-config-endpoint]
   (:body (client/get openid-config-endpoint {:as :json})))
@@ -66,11 +64,11 @@
   :redirect-uri
   URI of your application's oauth endpoint.
 
-  :aud
-  JWT audience. Typically the URL of your server.
+  :audience
+  URL of your server. Will be compared to :aud claim on ID Token.
 
   :client-id
-  OIDC client ID of your application. Should match :aud.
+  OIDC client ID of your application.
 
   :client-base-uri
   Base URI of client application. Include protocol. Do not include trailing slash.
@@ -180,7 +178,7 @@
            :error-description error})))))
 
 (defn- check-aud [config unsigned-jwt]
-  (let [config-aud (:aud config)
+  (let [config-aud (:audience config)
         jwt-aud (:aud unsigned-jwt)]
     (cond (string? jwt-aud)
           (= config-aud jwt-aud)
@@ -215,8 +213,9 @@
   (let [unsigned-token
         (unsign-jwt (get-jwks config)
                     (-> config
-                        (select-keys [:issuer :aud])
-                        (rename-keys {:issuer :iss}))
+                        (select-keys [:issuer :audience])
+                        (rename-keys {:issuer :iss
+                                      :audience :aud}))
                     token)]
     (if (:error unsigned-token)
       unsigned-token

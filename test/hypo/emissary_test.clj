@@ -9,7 +9,7 @@
  "config->browser-config"
  (let [example-config
        {:authorization-endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"
-        :aud "hypo"
+        :audience "hypo"
         :redirect-uri "https://hypo.app"
         :scope #{"oidc" "roles"}
         :response-type #{"code"}
@@ -133,7 +133,7 @@
               (str client-base-uri "/" state))
             :client-base-uri "https://hypo.app"
             :redirect-uri "https://hypo.instance/oauth"
-            :aud config-aud
+            :audience config-aud
             :issuer config-issuer
             :client-id "hypo"
             :insecure-mode? insecure-mode?
@@ -180,7 +180,7 @@
        :post-login-redirect-uri-fn post-login-redirect-uri-fn
        :client-base-uri "https://hypo.app"
        :redirect-uri "https://hypo.instance/oauth"
-       :aud "hypo"
+       :audience "hypo"
        :issuer "https://identity.provider/realms/main"
        :client-id "hypo"
        :insecure-mode? false
@@ -195,7 +195,7 @@
      :post-login-redirect-uri-fn post-login-redirect-uri-fn
      :client-base-uri "https://hypo.app"
      :redirect-uri "https://hypo.instance/oauth"
-     :aud "hypo"
+     :audience "hypo"
      :client-id "hypo"
      :response-type #{"code"}
      :issuer "https://identity.provider/realms/main"
@@ -220,7 +220,7 @@
 
  "wrap-oidc succeeds when JWT aud is list"
  (test-make-authentication-redirect-handler
-  (wrap-oidc-test-config {:aud ["hypo"]}))
+  (wrap-oidc-test-config {:audience ["hypo"]}))
  :=
  {:headers {"Location" "https://hypo.app/saved-state"}
   :status 302

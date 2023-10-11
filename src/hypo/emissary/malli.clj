@@ -10,7 +10,7 @@
    [:client-base-uri string?]
    [:client-secret string?]
    [:redirect-uri string?]
-   [:aud string?]
+   [:audience string?]
    [:client-id string?]
    [:insecure-mode? boolean?]
    [:scope [:set string?]]
@@ -29,7 +29,7 @@
               :client-secret
               :client-base-uri
               :redirect-uri
-              :aud
+              :audience
               :client-id
               :insecure-mode?
               :scope
