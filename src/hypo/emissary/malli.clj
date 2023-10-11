@@ -4,56 +4,48 @@
 
 (def CompleteConfig
   [:map
-   [:tokens-request-failure-redirect-uri-fn [:=> [:cat string? string? string? string?] string?]]
-   [:post-login-redirect-uri-fn [:=> [:cat string? string?] string?]]
+   [:issuer string?]
+   [:login-failure-redirect-uri-fn [:=> [:cat string? string? string? string?] string?]]
+   [:login-success-redirect-uri-fn [:=> [:cat string? string?] string?]]
    [:client-base-uri string?]
    [:client-secret string?]
-   [:openid-config-uri string?]
    [:redirect-uri string?]
-   [:aud string?]
-   [:iss string?]
+   [:audience string?]
    [:client-id string?]
    [:insecure-mode? boolean?]
    [:scope [:set string?]]
    [:response-type [:set string?]]
    [:trusted-audiences [:set string?]]
-   [:post-logout-redirect-uri string?]
-   [:idp-settings
-    [:map
-     [:config
-      [:map
-       [:authorization_endpoint string?]
-       [:token_endpoint string?]
-       [:end_session_endpoint string?]]]
-     [:jwks
-      [:map
-       [:keys [:sequential
-               [:map [:kid string?]]]]]]]]])
+   [:logout-success-redirect-uri string?]
+   [:keys [:sequential
+           [:map [:kid string?]]]]
+   [:authorization-endpoint string?]
+   [:token-endpoint string?]
+   [:end-session-endpoint string?]])
 
 (def InitialConfig
-  (ms/select CompleteConfig
-             [:openid-config-uri
-              :client-secret
-              :client-base-uri
-              :redirect-uri
-              :aud
-              :iss
-              :client-id
-              :insecure-mode?
-              :scope
-              :response-type
-              :trusted-audiences
-              :post-logout-redirect-uri
-              :tokens-request-failure-redirect-uri-fn
-              :post-login-redirect-uri-fn]))
+  (ms/select
+   CompleteConfig
+   [:issuer
+    :client-secret
+    :client-base-uri
+    :redirect-uri
+    :audience
+    :client-id
+    :insecure-mode?
+    :scope
+    :response-type
+    :trusted-audiences
+    :logout-success-redirect-uri
+    :login-failure-redirect-uri-fn
+    :login-success-redirect-uri-fn]))
 
 (def BrowserConfig
   (mu/closed-schema
-   (ms/select CompleteConfig
-              [:redirect-uri
-               :aud
-               :scope
-               :response-type
-               {:idp-settings
-                [{:config
-                  [:authorization_endpoint]}]}])))
+   (ms/select
+    CompleteConfig
+    [:redirect-uri
+     :client-id
+     :scope
+     :response-type
+     :authorization-endpoint])))
