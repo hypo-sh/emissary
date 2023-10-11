@@ -41,9 +41,10 @@
         token-endpoint (:token_endpoint openid-config)
         end-session-endpoint (:end_session_endpoint openid-config)]
     (merge
-     {:authorization-endpoint authorization-endpoint
-      :token-endpoint token-endpoint
-      :end-session-endpoint end-session-endpoint}
+     (cond-> {:authorization-endpoint authorization-endpoint
+              :token-endpoint token-endpoint}
+       end-session-endpoint
+       (merge {:end-session-endpoint end-session-endpoint}))
      jwks)))
 
 (defn- assertive-validate [schema value]
@@ -236,6 +237,13 @@
 (defn make-authentication-redirect-handler
   "Constructs a ring handler that acts as an OIDC redirect URI.
 
+  save-session! is a function taking the following arguments:
+  [id-token access-token refresh-token refresh-expires-in]
+
+  The first three values are JWTs represented as strings. The last value
+  is an optional integer representing the number of seconds until the
+  refresh token expires.
+
   This function assumes that you have ring middleware in place that
   decodes and keywordizes query params and places them at a
   `:query-params` key in the `req` map.
@@ -278,16 +286,28 @@
   [config]
   (:logout-success-redirect-uri config))
 
+(defn- rp-initiated-logout-supported?
+  ;; Spec: https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+  [config]
+  (let [end-session-endpoint (get-end-session-endpoint config)]
+    (if end-session-endpoint
+      true
+      false)))
+
 (defn make-logout-handler
   "Construct a ring handler that logs a user out."
   [config lookup-id-token delete-session]
   (fn [req]
-    (let [end-session-endpoint (get-end-session-endpoint config)
-          logout-success-redirect-uri (get-logout-success-redirect-uri config)
-          session-id (get-in req [:session :emissary/session-id])
-          id-token (lookup-id-token session-id)]
+    (let [logout-success-redirect-uri (get-logout-success-redirect-uri config)
+          session-id (get-in req [:session :emissary/session-id])]
       (delete-session session-id)
-      (-> (redirect (str end-session-endpoint
-                         "?id_token_hint=" id-token
-                         "&post_logout_redirect_uri=" logout-success-redirect-uri))
-          (update :session dissoc :emissary/session-id)))))
+      (if (rp-initiated-logout-supported? config)
+        (let [end-session-endpoint (get-end-session-endpoint config)
+              id-token (lookup-id-token session-id)]
+          (-> (redirect (str end-session-endpoint
+                             "?id_token_hint=" id-token
+                             "&post_logout_redirect_uri=" logout-success-redirect-uri))
+              (update :session dissoc :emissary/session-id)))
+
+        (-> (redirect logout-success-redirect-uri)
+            (update :session dissoc :emissary/session-id))))))

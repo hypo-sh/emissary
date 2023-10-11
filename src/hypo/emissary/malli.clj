@@ -21,7 +21,7 @@
            [:map [:kid string?]]]]
    [:authorization-endpoint string?]
    [:token-endpoint string?]
-   [:end-session-endpoint string?]])
+   [:end-session-endpoint {:optional true} string?]])
 
 (def InitialConfig
   (ms/select
