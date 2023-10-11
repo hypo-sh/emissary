@@ -237,6 +237,13 @@
 (defn make-authentication-redirect-handler
   "Constructs a ring handler that acts as an OIDC redirect URI.
 
+  save-session! is a function taking the following arguments:
+  [id-token access-token refresh-token refresh-expires-in]
+
+  The first three values are JWTs represented as strings. The last value
+  is an optional integer representing the number of seconds until the
+  refresh token expires.
+
   This function assumes that you have ring middleware in place that
   decodes and keywordizes query params and places them at a
   `:query-params` key in the `req` map.
