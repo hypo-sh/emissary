@@ -107,7 +107,6 @@
   {:pre [(assertive-validate em/InitialConfig config)]
    :post [(assertive-validate em/CompleteConfig %)]}
   (binding [*assert* true]
-    ;; TODO: test that values specified in config override values returned by server
     (let [openid-config-uri (str issuer "/.well-known/openid-configuration")
           config (merge (request-idp-settings openid-config-uri) config)]
       (assert (= #{"code"} response-type)) ;; We currently only support the authorization code flow
@@ -163,8 +162,6 @@
   [config]
   (:keys config))
 
-;; TODO:
-;; Get issuer from IDP config: https://cognito-idp.us-east-2.amazonaws.com/us-east-2_kfLiNedox/.well-known/openid-configuration
 (defn- unsign-jwt
   [keys claims jwt]
   (let [{:keys [alg _typ kid]} (jwt/decode-header jwt)
@@ -191,16 +188,10 @@
               {:error "untrusted_audience_present"}))
           :else
           (throw (ex-info ":aud on jwt-aud must be a string or a collection but was neither" {})))))
-;; aud can be
-;; nil
-;; a value
-;; a seq
 
-(defn unsign-access-token [config token]
-  ;; NOTE:
-  ;; Access tokens don't always have :aud claims. Buddy sign's semantics are backward IMO;
-  ;; it validates :aud claims if :aud is
-;; TODO: Look at spec; ensure that the correc claims are being verified here
+(defn unsign-access-token
+  [config token]
+  ;; NOTE: Access tokens don't necessarily include an :aud claim, so we don't validate that here.
   (unsign-jwt
    (get-jwks config)
    (-> config
@@ -208,8 +199,8 @@
        (rename-keys {:issuer :iss}))
    token))
 
-;; TODO: Look at spec; ensure that the correc claims are being verified here
-(defn unsign-id-token [config token]
+(defn unsign-id-token
+  [config token]
   (let [unsigned-token
         (unsign-jwt (get-jwks config)
                     (-> config
