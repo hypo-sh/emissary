@@ -18,18 +18,11 @@
    [:response-type [:set string?]]
    [:trusted-audiences [:set string?]]
    [:post-logout-redirect-uri string?]
-   [:idp-settings
-    [:map
-     [:config
-      [:map
-       [:authorization_endpoint string?]
-       [:token_endpoint string?]
-       #_
-       [:end_session_endpoint string?]]]
-     [:jwks
-      [:map
-       [:keys [:sequential
-               [:map [:kid string?]]]]]]]]])
+   [:keys [:sequential
+           [:map [:kid string?]]]]
+   [:authorization-endpoint string?]
+   [:token-endpoint string?]
+   [:end-session-endpoint string?]])
 
 (def InitialConfig
   (ms/select CompleteConfig
@@ -55,6 +48,4 @@
                :client-id
                :scope
                :response-type
-               {:idp-settings
-                [{:config
-                  [:authorization_endpoint]}]}])))
+               :authorization-endpoint])))

@@ -8,19 +8,19 @@
 (tests
  "config->browser-config"
  (let [example-config
-       {:idp-settings {:config {:authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"}}
+       {:authorization-endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"
         :aud "hypo"
         :redirect-uri "https://hypo.app"
         :scope #{"oidc" "roles"}
         :response-type #{"code"}
+        :client-id "abc"
         :secret-key "DO_NOT_REVEAL"}]
-   (sut/config->browser-config example-config)
    :=
-   {:idp-settings {:config {:authorization_endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"}}
-    :aud "hypo"
-    :redirect-uri "https://hypo.app"
+   {:redirect-uri "https://hypo.app"
+    :client-id "abc"
     :scope #{"oidc" "roles"}
-    :response-type #{"code"}}
+    :response-type #{"code"}
+    :authorization-endpoint "https://localhost:8081/realms/main/protocol/openid-connect/auth"}
 
    (m/validate em/BrowserConfig (sut/config->browser-config example-config))
    :=
@@ -155,10 +155,15 @@
 
 (tests
  "download-remote-config"
- (let [oidc-config-response
-       {:authorization_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/auth"
-        :end_session_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/logout"
-        :token_endpoint "https://localhost:8081/realms/test/protocol/openid-connect/token"}
+ (let [token-endpoint  "https://localhost:8081/realms/test/protocol/openid-connect/token"
+       end-session-endpoint "https://localhost:8081/realms/test/protocol/openid-connect/logout"
+       authorization-endpoint "https://localhost:8081/realms/test/protocol/openid-connect/auth"
+       issuer "https://localhost:8081/realms/test"
+       oidc-config-response
+       {:authorization_endpoint authorization-endpoint
+        :end_session_endpoint end-session-endpoint
+        :token_endpoint token-endpoint
+        :issuer issuer}
        jwks-response
        {:keys []}
        tokens-request-failure-redirect-uri-fn
@@ -198,8 +203,10 @@
     :iss "https://identity.provider/realms/main"
     :insecure-mode? false
     :scope #{"openid" "roles"}
-    :idp-settings {:config oidc-config-response
-                   :jwks jwks-response}
+    :authorization-endpoint authorization-endpoint
+    :end-session-endpoint end-session-endpoint
+    :token-endpoint token-endpoint
+    :jwks jwks-response
     :post-logout-redirect-uri "https://hypo.instance"
     :trusted-audiences #{"google"}
     :client-secret "fake-secret"}))
@@ -292,7 +299,10 @@
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
                                              {:config-issuer "https://identity.provider/realms/main"
                                               :id-token-issuer "https://attacking.provider/realms/main"}))
- := nil
+ :=
+ {:status 302
+  :headers {"Location" "https://hypo.app/login-failure?error=unsign_error&description=Issuer does not match https://identity.provider/realms/main&error_uri="}
+  :body ""}
 
  "3.1.3.7.3 The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience"
  #_#_#_false := true
@@ -301,7 +311,9 @@
  (test-make-authentication-redirect-handler (wrap-oidc-test-config
                                              {:config-aud "hypo"
                                               :id-token-aud "attacker"}))
- := nil
+ := {:status 302
+     :headers {"Location" "https://hypo.app/login-failure?error=unsign_error&description=Audience does not match hypo&error_uri="}
+     :body ""}
 
  ;; This is contentious
  ;; - https://bitbucket.org/openid/connect/issues/973/
@@ -327,9 +339,16 @@
  #_#_#_false := true
 
  "3.1.3.7.9 The current time MUST be before the time represented by the exp Claim"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                                             {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}))
- := nil
+ (let [res (test-make-authentication-redirect-handler
+            (wrap-oidc-test-config
+             {:id-token-exp (.minus (java.time.Instant/now) 1 java.time.temporal.ChronoUnit/DAYS)}))
+       loc (get-in res [:headers "Location"])]
+   res
+   := {:status 302
+       :headers {"Location" _}
+       :body ""}
+
+   (re-matches #".*(Token is expired).*" loc) := [_ "Token is expired"])
 
  "3.1.3.7.11 If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present and its value checked to verify that it is the same value as the one that was sent in the Authentication Request"
  #_#_#_false := true

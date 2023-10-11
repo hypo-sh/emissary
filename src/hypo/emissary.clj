@@ -10,6 +10,8 @@
             [malli.error :as me]
             [hypo.emissary.malli :as em]))
 
+;; TODO: User provides issuer, from which configure URI, etc are derived
+;;
 (defn- request-idp-openid-config-req
   [openid-config-endpoint]
   (:body (client/get openid-config-endpoint {:as :json})))
@@ -36,9 +38,19 @@
   [openid-config-uri]
   (let [openid-config (request-idp-openid-config openid-config-uri)
         cert-uri (get-cert-uri openid-config)
-        jwks (request-idp-jwks cert-uri)]
-    {:config openid-config
-     :jwks jwks}))
+        jwks (request-idp-jwks cert-uri)
+        authorization-endpoint (:authorization_endpoint openid-config)
+        token-endpoint (:token_endpoint openid-config)
+        end-session-endpoint (:end_session_endpoint openid-config)
+        issuer (:issuer openid-config)]
+    (merge
+     {:authorization-endpoint authorization-endpoint
+      :token-endpoint token-endpoint
+      :end-session-endpoint end-session-endpoint
+     ;; TODO: Is it a good idea for issuer to overlap here?
+     ;; TODO: Is issuer always present?
+      :iss issuer}
+     jwks)))
 
 (defn- assertive-validate [schema value]
   (if-let [e (m/explain schema value)]
@@ -105,11 +117,12 @@
   {:pre [(assertive-validate em/InitialConfig config)]
    :post [(assertive-validate em/CompleteConfig %)]}
   (binding [*assert* true]
-    (let [config (merge config {:idp-settings (request-idp-settings openid-config-uri)})]
+    ;; TODO: test that values specified in config override values returned by server
+    (let [config (merge (request-idp-settings openid-config-uri) config)]
       (assert (= #{"code"} response-type)) ;; We currently only support the authorization code flow
       (when-not insecure-mode?
-        (assert (starts-with? (get-in config [:idp-settings :config :authorization_endpoint]) "https"))
-        (assert (starts-with? (get-in config [:idp-settings :config :token_endpoint]) "https")))
+        (assert (starts-with? (:authorization-endpoint config) "https"))
+        (assert (starts-with? (:token-endpoint config) "https")))
       config)))
 
 (defn config->browser-config
@@ -118,15 +131,12 @@
   ;; to send over the wire to the browser.
   [config]
   {:post [(m/validate em/BrowserConfig %)]}
-  (merge {:idp-settings
-          {:config
-           {:authorization_endpoint
-            (-> config :idp-settings :config :authorization_endpoint)}}}
-         (select-keys
-          config [:client-id
-                  :redirect-uri
-                  :scope
-                  :response-type])))
+  (select-keys
+   config [:client-id
+           :redirect-uri
+           :scope
+           :response-type
+           :authorization-endpoint]))
 
 (defn- find-key
   [kid keys]
@@ -147,7 +157,7 @@
 
 (defn- get-id-token-uri
   [config]
-  (get-in config [:idp-settings :config :token_endpoint]))
+  (:token-endpoint config))
 
 (defn- unpack-exception [e]
   (json/parse-string (:body (ex-data e)) keyword))
@@ -160,7 +170,7 @@
 
 (defn- get-jwks
   [config]
-  (get-in config [:idp-settings :jwks :keys]))
+  (:keys config))
 
 ;; TODO:
 ;; Get issuer from IDP config: https://cognito-idp.us-east-2.amazonaws.com/us-east-2_kfLiNedox/.well-known/openid-configuration
@@ -244,6 +254,7 @@
             client-base-uri (:client-base-uri config)]
         (if error
           ;; TODO: Make new function for handling this
+          ;; TODO: single callback failure fn
           (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error-description ""))
           (let [code (get-in req [:query-params "code"])
                 authentication-state (get-in req [:query-params "state"])
@@ -268,11 +279,12 @@
 
 (defn- get-end-session-endpoint
   [config]
-  (get-in config [:idp-settings :config :end_session_endpoint]))
+  (:end-session-endpoint config))
 
 (defn- get-post-login-redirect-uri
   [config]
-  (get-in config [:post-logout-redirect-uri]))
+  ;; TODO: logout vs login?
+  (:post-logout-redirect-uri config))
 
 (defn make-logout-handler
   "Construct a ring handler that logs a user out."

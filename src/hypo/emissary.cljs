@@ -7,7 +7,7 @@
            scope
            response-type] :as config}
    local-state]
-  (let [authorization-uri (get-in config [:idp-settings :config :authorization_endpoint])
+  (let [authorization-uri (:authorization-endpoint config)
         params {"client_id" client-id
                 "local_state" (js/encodeURIComponent (str local-state))
                 "redirect_uri" (js/encodeURIComponent redirect-uri)
