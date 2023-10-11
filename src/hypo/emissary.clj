@@ -187,26 +187,31 @@
           {:error "unsign_error"
            :error-description error})))))
 
+(defn- check-aud [config unsigned-jwt]
+  (let [config-aud (:aud config)
+        jwt-aud (:aud unsigned-jwt)]
+    (cond (string? jwt-aud)
+          (= config-aud jwt-aud)
+          (coll? jwt-aud)
+          (let [trusted-audiences (:trusted-audiences config)
+                all-trusted-audiences (union #{config-aud} trusted-audiences)
+                jwt-aud (into #{} jwt-aud)]
+            (if (empty? (difference jwt-aud all-trusted-audiences))
+              unsigned-jwt
+              {:error "untrusted_audience_present"}))
+          :else
+          (throw (ex-info ":aud on jwt-aud must be a string or a collection but was neither" {})))))
+;; aud can be
+;; nil
+;; a value
+;; a seq
+
 (defn unsign-token
   ;; TODO: Add note that you should use token-specific fns here
   "Validate token. If passes, return clojure object representing jwt. Returns map containing :error and :error-description otherwise."
-  [{:keys [trusted-audiences aud] :as config} claims token]
-  (when-let [unsign-result (unsign-jwt config claims token)]
-    (if (:error unsign-result)
-      unsign-result
-      ;; TODO: Look at spec. If this only applies to id tokens, then move this logic there
-      (let [jwt-aud (:aud unsign-result)
-            jwt-aud
-            (into #{}
-                  (cond (coll? jwt-aud)
-                        (into #{} jwt-aud)
-                        (nil? jwt-aud)
-                        #{}
-                        :else
-                        #{jwt-aud}))
-            all-trusted-audiences (union #{aud} trusted-audiences)]
-        (when (empty? (difference jwt-aud all-trusted-audiences))
-          unsign-result)))))
+  [config claims token]
+  ;; TODO: Remove one of these iunsign functions
+  (unsign-jwt config claims token))
 
 (defn unsign-access-token [config token]
   ;; NOTE:
@@ -217,7 +222,11 @@
 
 ;; TODO: Look at spec; ensure that the correc claims are being verified here
 (defn unsign-id-token [config token]
-  (unsign-token config (select-keys config [:iss :aud]) token))
+  (let [unsigned-token (unsign-token config (select-keys config [:iss :aud]) token)]
+    (if (:error unsigned-token)
+      unsigned-token
+      (check-aud config unsigned-token)))
+  )
 
 (defn- request-refresh-req
   [token-uri client-id refresh-token]
@@ -269,7 +278,7 @@
                 (request-tokens (merge config {:code code}))]
             (if error
               (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error_description error_uri))
-              (let [id-token-unsign-result (unsign-token config (select-keys config [:iss :aud]) id_token)]
+              (let [id-token-unsign-result (unsign-id-token config id_token)]
                 (cond (:error id-token-unsign-result)
                       (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
                       :else

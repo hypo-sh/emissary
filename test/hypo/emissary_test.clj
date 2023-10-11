@@ -192,35 +192,38 @@
        :post-logout-redirect-uri "https://hypo.instance"
        :client-secret "fake-secret"}))
    :=
-   {:tokens-request-failure-redirect-uri-fn  tokens-request-failure-redirect-uri-fn
-    :post-login-redirect-uri-fn post-login-redirect-uri-fn
-    :client-base-uri "https://hypo.app"
-    :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
-    :redirect-uri "https://hypo.instance/oauth"
-    :aud "hypo"
-    :client-id "hypo"
-    :response-type #{"code"}
-    :iss "https://identity.provider/realms/main"
-    :insecure-mode? false
-    :scope #{"openid" "roles"}
-    :authorization-endpoint authorization-endpoint
-    :end-session-endpoint end-session-endpoint
-    :token-endpoint token-endpoint
-    :jwks jwks-response
-    :post-logout-redirect-uri "https://hypo.instance"
-    :trusted-audiences #{"google"}
-    :client-secret "fake-secret"}))
+   (merge
+    {:tokens-request-failure-redirect-uri-fn  tokens-request-failure-redirect-uri-fn
+     :post-login-redirect-uri-fn post-login-redirect-uri-fn
+     :client-base-uri "https://hypo.app"
+     :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
+     :redirect-uri "https://hypo.instance/oauth"
+     :aud "hypo"
+     :client-id "hypo"
+     :response-type #{"code"}
+     :iss "https://identity.provider/realms/main"
+     :insecure-mode? false
+     :scope #{"openid" "roles"}
+     :authorization-endpoint authorization-endpoint
+     :end-session-endpoint end-session-endpoint
+     :token-endpoint token-endpoint
+     :post-logout-redirect-uri "https://hypo.instance"
+     :trusted-audiences #{"google"}
+     :client-secret "fake-secret"}
+    jwks-response)))
 
 (tests
  "wrap-oidc succeeds"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config {}))
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config {}))
  := {:headers {"Location" "https://hypo.app/saved-state"}
      :status 302
      :body ""
      :session {:emissary/session-id _}}
 
  "wrap-oidc succeeds when JWT aud is list"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config {:aud ["hypo"]}))
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config {:aud ["hypo"]}))
  :=
  {:headers {"Location" "https://hypo.app/saved-state"}
   :status 302
@@ -239,8 +242,9 @@
   :body ""
   :session {:emissary/session-id _}}
 
- (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                                             {:response-type #{"code" "token"}}))
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config
+   {:response-type #{"code" "token"}}))
  :throws
  java.lang.AssertionError
 
@@ -262,8 +266,9 @@
 
  ;; Spec-tests START
  "3.1.2 Communication with the Authorization Endpoint MUST utilize TLS"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                                             {:authorization_endpoint "http://non-https.uri"}))
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config
+   {:authorization_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
  "3.1.2.1 scope REQUIRED"
@@ -285,8 +290,9 @@
  #_#_#_false := true
 
  "3.1.3 Communication with the Token Endpoint MUST utilize TLS"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                                             {:token_endpoint "http://non-https.uri"}))
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config
+   {:token_endpoint "http://non-https.uri"}))
  :throws java.lang.AssertionError
 
  "3.1.3.1 If the Client is a Confidential Client, then it MUST authenticate to the Token Endpoint using the authentication method registered for its client_id, as described in Section 9"
@@ -296,9 +302,10 @@
  #_#_#_false := true
 
  "3.1.3.7.2 The Issuer Identifier for the OpenID Provider (which is typically obtained during Discovery) MUST exactly match the value of the iss (issuer) Claim"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                                             {:config-issuer "https://identity.provider/realms/main"
-                                              :id-token-issuer "https://attacking.provider/realms/main"}))
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config
+   {:config-issuer "https://identity.provider/realms/main"
+    :id-token-issuer "https://attacking.provider/realms/main"}))
  :=
  {:status 302
   :headers {"Location" "https://hypo.app/login-failure?error=unsign_error&description=Issuer does not match https://identity.provider/realms/main&error_uri="}
@@ -308,9 +315,10 @@
  #_#_#_false := true
 
  "3.1.3.7.3 The ID Token MUST be rejected if the ID Token does not list the Client as a valid audience,"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                                             {:config-aud "hypo"
-                                              :id-token-aud "attacker"}))
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config
+   {:config-aud "hypo"
+    :id-token-aud "attacker"}))
  := {:status 302
      :headers {"Location" "https://hypo.app/login-failure?error=unsign_error&description=Audience does not match hypo&error_uri="}
      :body ""}
@@ -319,12 +327,16 @@
  ;; - https://bitbucket.org/openid/connect/issues/973/
  ;; - https://bitbucket.org/openid/connect/pull-requests/340/errata-clarified-that-azp-does-not-occur
  "3.1.3.7.3 or if it contains additional audiences not trusted by the Client"
- (test-make-authentication-redirect-handler (wrap-oidc-test-config
-                                             {:config-aud "hypo"
-                                              :id-token-aud ["hypo" "attacker"]}))
- := nil
+ (test-make-authentication-redirect-handler
+  (wrap-oidc-test-config
+   {:config-aud "hypo"
+    :id-token-aud ["hypo" "attacker"]}))
+ :=
+ {:status 302
+  :headers {"Location" "https://hypo.app/login-failure?error=untrusted_audience_present&description=&error_uri="}
+  :body ""}
 
- ;; Contentious; see above
+;; Contentious; see above
  "3.1.3.7.4 If the ID Token contains multiple audiences, the Client SHOULD verify that an azp Claim is present"
  #_#_#_false := true
 
