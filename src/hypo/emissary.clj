@@ -274,7 +274,6 @@
 
 (defn- get-logout-success-redirect-uri
   [config]
-  ;; TODO: logout vs login?
   (:logout-success-redirect-uri config))
 
 (defn make-logout-handler

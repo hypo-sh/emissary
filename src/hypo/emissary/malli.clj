@@ -24,26 +24,28 @@
    [:end-session-endpoint string?]])
 
 (def InitialConfig
-  (ms/select CompleteConfig
-             [:issuer
-              :client-secret
-              :client-base-uri
-              :redirect-uri
-              :audience
-              :client-id
-              :insecure-mode?
-              :scope
-              :response-type
-              :trusted-audiences
-              :logout-success-redirect-uri
-              :login-failure-redirect-uri-fn
-              :login-success-redirect-uri-fn]))
+  (ms/select
+   CompleteConfig
+   [:issuer
+    :client-secret
+    :client-base-uri
+    :redirect-uri
+    :audience
+    :client-id
+    :insecure-mode?
+    :scope
+    :response-type
+    :trusted-audiences
+    :logout-success-redirect-uri
+    :login-failure-redirect-uri-fn
+    :login-success-redirect-uri-fn]))
 
 (def BrowserConfig
   (mu/closed-schema
-   (ms/select CompleteConfig
-              [:redirect-uri
-               :client-id
-               :scope
-               :response-type
-               :authorization-endpoint])))
+   (ms/select
+    CompleteConfig
+    [:redirect-uri
+     :client-id
+     :scope
+     :response-type
+     :authorization-endpoint])))
