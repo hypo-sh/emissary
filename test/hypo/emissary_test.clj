@@ -86,7 +86,7 @@
       :trusted-audiences #{"hypo"}
       :insecure-mode? false
       :config-issuer "https://identity.provider/realms/main"
-      :post-logout-redirect-uri "https://hypo.app"
+      :logout-success-redirect-uri "https://hypo.app"
       :config-aud "hypo"
       :scope #{"oidc" "roles"}
       :response-type #{"code"}
@@ -113,7 +113,7 @@
            scope
            response-type
            trusted-audiences
-           post-logout-redirect-uri
+           logout-success-redirect-uri
            client-secret
            request-idp-openid-config-req-fn
            request-tokens-req-fn
@@ -125,10 +125,10 @@
           sut/request-idp-jwks-req
           request-idp-jwks-req-fn]
           (sut/download-remote-config
-           {:tokens-request-failure-redirect-uri-fn
+           {:login-failure-redirect-uri-fn
             (fn [client-base-uri error error-description error-uri]
               (str client-base-uri "/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
-            :post-login-redirect-uri-fn
+            :login-success-redirect-uri-fn
             (fn [client-base-uri state]
               (str client-base-uri "/" state))
             :client-base-uri "https://hypo.app"
@@ -140,7 +140,7 @@
             :scope scope
             :response-type response-type
             :trusted-audiences trusted-audiences
-            :post-logout-redirect-uri post-logout-redirect-uri
+            :logout-success-redirect-uri logout-success-redirect-uri
             :client-secret client-secret}))
         handler (sut/make-authentication-redirect-handler
                  config
@@ -165,10 +165,10 @@
         :issuer issuer}
        jwks-response
        {:keys []}
-       tokens-request-failure-redirect-uri-fn
+       login-failure-redirect-uri-fn
        (fn [client-base-uri error error-description error-uri]
          (str client-base-uri "/login-failure?error=" error "&description=" error-description "&error_uri=" error-uri))
-       post-login-redirect-uri-fn
+       login-success-redirect-uri-fn
        (fn [client-base-uri state]
          (str client-base-uri "/" state))]
 
@@ -176,8 +176,9 @@
     [sut/request-idp-openid-config-req (fn [_] oidc-config-response)
      sut/request-idp-jwks-req (fn [_] jwks-response)]
      (sut/download-remote-config
-      {:tokens-request-failure-redirect-uri-fn tokens-request-failure-redirect-uri-fn
-       :post-login-redirect-uri-fn post-login-redirect-uri-fn
+      {:login-failure-redirect-uri-fn
+       login-failure-redirect-uri-fn
+       :login-success-redirect-uri-fn login-success-redirect-uri-fn
        :client-base-uri "https://hypo.app"
        :redirect-uri "https://hypo.instance/oauth"
        :audience "hypo"
@@ -187,12 +188,13 @@
        :scope #{"openid" "roles"}
        :response-type #{"code"}
        :trusted-audiences #{"google"}
-       :post-logout-redirect-uri "https://hypo.instance"
+       :logout-success-redirect-uri "https://hypo.instance"
        :client-secret "fake-secret"}))
    :=
    (merge
-    {:tokens-request-failure-redirect-uri-fn  tokens-request-failure-redirect-uri-fn
-     :post-login-redirect-uri-fn post-login-redirect-uri-fn
+    {:login-failure-redirect-uri-fn
+     login-failure-redirect-uri-fn
+     :login-success-redirect-uri-fn login-success-redirect-uri-fn
      :client-base-uri "https://hypo.app"
      :redirect-uri "https://hypo.instance/oauth"
      :audience "hypo"
@@ -204,7 +206,7 @@
      :authorization-endpoint authorization-endpoint
      :end-session-endpoint end-session-endpoint
      :token-endpoint token-endpoint
-     :post-logout-redirect-uri "https://hypo.instance"
+     :logout-success-redirect-uri "https://hypo.instance"
      :trusted-audiences #{"google"}
      :client-secret "fake-secret"}
     jwks-response)))

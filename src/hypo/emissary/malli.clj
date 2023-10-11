@@ -5,8 +5,8 @@
 (def CompleteConfig
   [:map
    [:issuer string?]
-   [:tokens-request-failure-redirect-uri-fn [:=> [:cat string? string? string? string?] string?]]
-   [:post-login-redirect-uri-fn [:=> [:cat string? string?] string?]]
+   [:login-failure-redirect-uri-fn [:=> [:cat string? string? string? string?] string?]]
+   [:login-success-redirect-uri-fn [:=> [:cat string? string?] string?]]
    [:client-base-uri string?]
    [:client-secret string?]
    [:redirect-uri string?]
@@ -16,7 +16,7 @@
    [:scope [:set string?]]
    [:response-type [:set string?]]
    [:trusted-audiences [:set string?]]
-   [:post-logout-redirect-uri string?]
+   [:logout-success-redirect-uri string?]
    [:keys [:sequential
            [:map [:kid string?]]]]
    [:authorization-endpoint string?]
@@ -35,9 +35,9 @@
               :scope
               :response-type
               :trusted-audiences
-              :post-logout-redirect-uri
-              :tokens-request-failure-redirect-uri-fn
-              :post-login-redirect-uri-fn]))
+              :logout-success-redirect-uri
+              :login-failure-redirect-uri-fn
+              :login-success-redirect-uri-fn]))
 
 (def BrowserConfig
   (mu/closed-schema

@@ -86,17 +86,17 @@
   :trusted-audiences
   Other audiences that are allowed on the JWT expressed as a clojure set.
 
-  :post-login-redirect-uri-fn
+  :login-success-redirect-uri-fn
   A function that returns a URI where the user should be redirected after login.
   Takes one arg, [client-base-uri state].
 
-  :tokens-request-failure-redirect-uri-fn
+  :login-failure-redirect-uri-fn
   A function that returns a URI where the user should be redirected if the token request
   returns exceptionally.
   Takes two args, [client-base-uri error error-description]. Return a URL to which the user will be
   redirected.
 
-  :post-logout-redirect-uri
+  :logout-success-redirect-uri
   URI where user should be redirected after logout.
   "
   [{:keys [issuer
@@ -246,9 +246,7 @@
             error-description (-> req :params :error_description)
             client-base-uri (:client-base-uri config)]
         (if error
-          ;; TODO: Make new function for handling this
-          ;; TODO: single callback failure fn
-          (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error-description ""))
+          (redirect ((:login-failure-redirect-uri-fn config) client-base-uri error error-description ""))
           (let [code (get-in req [:query-params "code"])
                 authentication-state (get-in req [:query-params "state"])
                 _session_state (get-in req [:query-params "session_state"])
@@ -261,34 +259,34 @@
                         error_uri]}
                 (request-tokens (merge config {:code code}))]
             (if error
-              (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri error error_description error_uri))
+              (redirect ((:login-failure-redirect-uri-fn config) client-base-uri error error_description error_uri))
               (let [id-token-unsign-result (unsign-id-token config id_token)]
                 (cond (:error id-token-unsign-result)
-                      (redirect ((:tokens-request-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
+                      (redirect ((:login-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
                       :else
                       (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
-                        (-> (redirect ((:post-login-redirect-uri-fn config) client-base-uri authentication-state))
+                        (-> (redirect ((:login-success-redirect-uri-fn config) client-base-uri authentication-state))
                             (assoc-in [:session :emissary/session-id] session-id))))))))))))
 
 (defn- get-end-session-endpoint
   [config]
   (:end-session-endpoint config))
 
-(defn- get-post-logout-redirect-uri
+(defn- get-logout-success-redirect-uri
   [config]
   ;; TODO: logout vs login?
-  (:post-logout-redirect-uri config))
+  (:logout-success-redirect-uri config))
 
 (defn make-logout-handler
   "Construct a ring handler that logs a user out."
   [config lookup-id-token delete-session]
   (fn [req]
     (let [end-session-endpoint (get-end-session-endpoint config)
-          post-logout-redirect-uri (get-post-logout-redirect-uri config)
+          logout-success-redirect-uri (get-logout-success-redirect-uri config)
           session-id (get-in req [:session :emissary/session-id])
           id-token (lookup-id-token session-id)]
       (delete-session session-id)
       (-> (redirect (str end-session-endpoint
                          "?id_token_hint=" id-token
-                         "&post_logout_redirect_uri=" post-logout-redirect-uri))
+                         "&post_logout_redirect_uri=" logout-success-redirect-uri))
           (update :session dissoc :emissary/session-id)))))
