@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [HEAD]
 
+### Changed
+
+#### Config
+
+- Renamed `:openid-config-uri` to `:issuer`
+- `:issuer` should no longer include the `.well-known/openid-configuration` suffix
+- Renamed `:aud` to `:audience`
+- Renamed `:post-login-redirect-uri-fn` to `:login-success-redirect-uri-fn`
+- Renamed `:tokens-request-failure-redirect-uri-fn` to `:login-failure-redirect-uri-fn`
+- Renamed `:post-logout-redirect-uri` to `:logout-success-redirect-uri`
+
+#### Other
+
+- Login handler no longer validates access token
+- Broke `unsign-token` into `unsign-access-token` and `unsign-id-token`
+- Improved login failure error messaging
+
+## [f59b5791583b15554ddcb29441a1474aed458d60]
+
 ### Added
 
 - Add `:client-base-uri` to config. `tokens-request-failure-redirect-uri-fn` and
