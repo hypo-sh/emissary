@@ -174,11 +174,13 @@
           {:error "unsign_error"
            :error-description error})))))
 
-(defn- check-aud [config unsigned-jwt]
+(defn- check-untrusted-aud [config unsigned-jwt]
   (let [config-aud (:audience config)
         jwt-aud (:aud unsigned-jwt)]
     (cond (string? jwt-aud)
-          (= config-aud jwt-aud)
+          ;; buddy-sign already validates the audience claim so we don't
+          ;; need to do that here
+          unsigned-jwt
           (coll? jwt-aud)
           (let [trusted-audiences (:trusted-audiences config)
                 all-trusted-audiences (union #{config-aud} trusted-audiences)
@@ -201,16 +203,16 @@
 
 (defn unsign-id-token
   [config token]
-  (let [unsigned-token
+  (let [unsign-result
         (unsign-jwt (get-jwks config)
                     (-> config
                         (select-keys [:issuer :audience])
                         (rename-keys {:issuer :iss
                                       :audience :aud}))
                     token)]
-    (if (:error unsigned-token)
-      unsigned-token
-      (check-aud config unsigned-token))))
+    (if (:error unsign-result)
+      unsign-result
+      (check-untrusted-aud config unsign-result))))
 
 (defn- request-refresh-req
   [token-uri client-id refresh-token]
