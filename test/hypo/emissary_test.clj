@@ -132,10 +132,9 @@
             (fn [client-base-uri state]
               (str client-base-uri "/" state))
             :client-base-uri "https://hypo.app"
-            :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
             :redirect-uri "https://hypo.instance/oauth"
             :aud config-aud
-            :iss config-issuer
+            :issuer config-issuer
             :client-id "hypo"
             :insecure-mode? insecure-mode?
             :scope scope
@@ -180,10 +179,9 @@
       {:tokens-request-failure-redirect-uri-fn tokens-request-failure-redirect-uri-fn
        :post-login-redirect-uri-fn post-login-redirect-uri-fn
        :client-base-uri "https://hypo.app"
-       :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
        :redirect-uri "https://hypo.instance/oauth"
        :aud "hypo"
-       :iss "https://identity.provider/realms/main"
+       :issuer "https://identity.provider/realms/main"
        :client-id "hypo"
        :insecure-mode? false
        :scope #{"openid" "roles"}
@@ -196,12 +194,11 @@
     {:tokens-request-failure-redirect-uri-fn  tokens-request-failure-redirect-uri-fn
      :post-login-redirect-uri-fn post-login-redirect-uri-fn
      :client-base-uri "https://hypo.app"
-     :openid-config-uri "https://identity.provider/realms/main/.well-known/openid-configuration"
      :redirect-uri "https://hypo.instance/oauth"
      :aud "hypo"
      :client-id "hypo"
      :response-type #{"code"}
-     :iss "https://identity.provider/realms/main"
+     :issuer "https://identity.provider/realms/main"
      :insecure-mode? false
      :scope #{"openid" "roles"}
      :authorization-endpoint authorization-endpoint

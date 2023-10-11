@@ -4,14 +4,13 @@
 
 (def CompleteConfig
   [:map
+   [:issuer string?]
    [:tokens-request-failure-redirect-uri-fn [:=> [:cat string? string? string? string?] string?]]
    [:post-login-redirect-uri-fn [:=> [:cat string? string?] string?]]
    [:client-base-uri string?]
    [:client-secret string?]
-   [:openid-config-uri string?]
    [:redirect-uri string?]
    [:aud string?]
-   [:iss string?]
    [:client-id string?]
    [:insecure-mode? boolean?]
    [:scope [:set string?]]
@@ -26,12 +25,11 @@
 
 (def InitialConfig
   (ms/select CompleteConfig
-             [:openid-config-uri
+             [:issuer
               :client-secret
               :client-base-uri
               :redirect-uri
               :aud
-              :iss
               :client-id
               :insecure-mode?
               :scope

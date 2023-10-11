@@ -1,7 +1,7 @@
 (ns hypo.emissary
   (:require [clj-http.client :as client]
             [clojure.string :refer [starts-with?]]
-            [clojure.set :refer [difference union]]
+            [clojure.set :refer [difference union rename-keys]]
             [ring.util.response :refer [redirect]]
             [cheshire.core :as json]
             [buddy.sign.jwk :as jwk]
@@ -41,15 +41,11 @@
         jwks (request-idp-jwks cert-uri)
         authorization-endpoint (:authorization_endpoint openid-config)
         token-endpoint (:token_endpoint openid-config)
-        end-session-endpoint (:end_session_endpoint openid-config)
-        issuer (:issuer openid-config)]
+        end-session-endpoint (:end_session_endpoint openid-config)]
     (merge
      {:authorization-endpoint authorization-endpoint
       :token-endpoint token-endpoint
-      :end-session-endpoint end-session-endpoint
-     ;; TODO: Is it a good idea for issuer to overlap here?
-     ;; TODO: Is issuer always present?
-      :iss issuer}
+      :end-session-endpoint end-session-endpoint}
      jwks)))
 
 (defn- assertive-validate [schema value]
@@ -64,18 +60,14 @@
 
   Takes a map with the following keys:
 
-  :openid-config-uri
-  URI of the identity provider's openid-configuration endpoint.
-  Example: \"https://identity.provider/realms/main/.well-known/openid-configuration\"
+  :issuer
+  URI of the identity provider. Include protocol. Do not include trailing slash.
 
   :redirect-uri
   URI of your application's oauth endpoint.
 
   :aud
   JWT audience. Typically the URL of your server.
-
-  :iss
-  JWT issuer. Typically the URL of your identity provider.
 
   :client-id
   OIDC client ID of your application. Should match :aud.
@@ -109,7 +101,7 @@
   :post-logout-redirect-uri
   URI where user should be redirected after logout.
   "
-  [{:keys [openid-config-uri
+  [{:keys [issuer
            insecure-mode?
            response-type]
     :or {insecure-mode? false}
@@ -118,7 +110,8 @@
    :post [(assertive-validate em/CompleteConfig %)]}
   (binding [*assert* true]
     ;; TODO: test that values specified in config override values returned by server
-    (let [config (merge (request-idp-settings openid-config-uri) config)]
+    (let [openid-config-uri (str issuer "/.well-known/openid-configuration")
+          config (merge (request-idp-settings openid-config-uri) config)]
       (assert (= #{"code"} response-type)) ;; We currently only support the authorization code flow
       (when-not insecure-mode?
         (assert (starts-with? (:authorization-endpoint config) "https"))
@@ -175,10 +168,9 @@
 ;; TODO:
 ;; Get issuer from IDP config: https://cognito-idp.us-east-2.amazonaws.com/us-east-2_kfLiNedox/.well-known/openid-configuration
 (defn- unsign-jwt
-  [config claims jwt]
-  (let [ks (get-jwks config)
-        {:keys [alg _typ kid]} (jwt/decode-header jwt)
-        key (find-key kid ks)
+  [keys claims jwt]
+  (let [{:keys [alg _typ kid]} (jwt/decode-header jwt)
+        key (find-key kid keys)
         pubkey (jwk/public-key key)]
     (try
       (jwt/unsign jwt pubkey (merge {:alg alg} claims))
@@ -206,27 +198,29 @@
 ;; a value
 ;; a seq
 
-(defn unsign-token
-  ;; TODO: Add note that you should use token-specific fns here
-  "Validate token. If passes, return clojure object representing jwt. Returns map containing :error and :error-description otherwise."
-  [config claims token]
-  ;; TODO: Remove one of these iunsign functions
-  (unsign-jwt config claims token))
-
 (defn unsign-access-token [config token]
   ;; NOTE:
   ;; Access tokens don't always have :aud claims. Buddy sign's semantics are backward IMO;
   ;; it validates :aud claims if :aud is
 ;; TODO: Look at spec; ensure that the correc claims are being verified here
-  (unsign-token config (select-keys config [:iss]) token))
+  (unsign-jwt
+   (get-jwks config)
+   (-> config
+       (select-keys [:issuer])
+       (rename-keys {:issuer :iss}))
+   token))
 
 ;; TODO: Look at spec; ensure that the correc claims are being verified here
 (defn unsign-id-token [config token]
-  (let [unsigned-token (unsign-token config (select-keys config [:iss :aud]) token)]
+  (let [unsigned-token
+        (unsign-jwt (get-jwks config)
+                    (-> config
+                        (select-keys [:issuer :aud])
+                        (rename-keys {:issuer :iss}))
+                    token)]
     (if (:error unsigned-token)
       unsigned-token
-      (check-aud config unsigned-token)))
-  )
+      (check-aud config unsigned-token))))
 
 (defn- request-refresh-req
   [token-uri client-id refresh-token]
@@ -290,7 +284,7 @@
   [config]
   (:end-session-endpoint config))
 
-(defn- get-post-login-redirect-uri
+(defn- get-post-logout-redirect-uri
   [config]
   ;; TODO: logout vs login?
   (:post-logout-redirect-uri config))
@@ -300,7 +294,7 @@
   [config lookup-id-token delete-session]
   (fn [req]
     (let [end-session-endpoint (get-end-session-endpoint config)
-          post-logout-redirect-uri (get-post-login-redirect-uri config)
+          post-logout-redirect-uri (get-post-logout-redirect-uri config)
           session-id (get-in req [:session :emissary/session-id])
           id-token (lookup-id-token session-id)]
       (delete-session session-id)
