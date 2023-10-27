@@ -192,16 +192,6 @@
           :else
           (throw (ex-info ":aud on jwt-aud must be a string or a collection but was neither" {})))))
 
-(defn unsign-access-token
-  [config token]
-  ;; NOTE: Access tokens don't necessarily include an :aud claim, so we don't validate that here.
-  (unsign-jwt
-   (get-jwks config)
-   (-> config
-       (select-keys [:issuer])
-       (rename-keys {:issuer :iss}))
-   token))
-
 (defn unsign-id-token
   [config token]
   (let [unsign-result
@@ -263,6 +253,7 @@
                 {:keys [access_token
                         refresh_token
                         id_token
+                        expires_in
                         refresh_expires_in
                         error
                         error_description
@@ -274,7 +265,7 @@
                 (cond (:error id-token-unsign-result)
                       (redirect ((:login-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
                       :else
-                      (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
+                      (let [session-id (save-session! id_token access_token refresh_token expires_in refresh_expires_in)]
                         (-> (redirect ((:login-success-redirect-uri-fn config) client-base-uri authentication-state))
                             (assoc-in [:session :emissary/session-id] session-id))))))))))))
 
