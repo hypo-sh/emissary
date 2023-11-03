@@ -139,6 +139,8 @@
    (client/post token-uri
                 {:form-params
                  {"code" code
+                  #_#_
+                  "audience" "hypo-demo"
                   "redirect_uri" redirect-uri
                   "grant_type" "authorization_code"
                   "client_id" client-id}
@@ -170,6 +172,24 @@
         pubkey (jwk/public-key key)]
     (try
       (jwt/unsign jwt pubkey (merge {:alg alg} claims))
+      (catch Exception e
+        (let [error (ex-message e)]
+          {:error "unsign_error"
+           :error-description error})))))
+
+;; TODO: Come up with name for this
+;; Figure out where to put it
+;; Figure out how it relates to unsign-jwt above
+(defn unsign-jwt'
+  [keys audience issuer jwt]
+  (let [{:keys [alg _typ kid]} (jwt/decode-header jwt)
+        key (find-key kid keys)
+        pubkey (jwk/public-key key)]
+    (try
+      (jwt/unsign jwt pubkey
+                  {:alg alg
+                   :aud audience
+                   :iss issuer})
       (catch Exception e
         (let [error (ex-message e)]
           {:error "unsign_error"
@@ -211,6 +231,8 @@
                       {:form-params
                        {"refresh_token" refresh-token
                         "client_id" client-id
+                        #_#_
+                        "audience" "hypo-demo"
                         "grant_type" "refresh_token"}
                        :headers {"Content-Type" "application/x-www-form-urlencoded"}
                        :as :json})))
