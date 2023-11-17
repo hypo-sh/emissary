@@ -250,7 +250,7 @@
   "Constructs a ring handler that acts as an OIDC redirect URI.
 
   save-session! is a function taking the following arguments:
-  [id-token access-token refresh-token refresh-expires-in]
+  [id-token access-token expires-in refresh-token refresh-expires-in]
 
   The first three values are JWTs represented as strings. The last value
   is an optional integer representing the number of seconds until the
@@ -287,7 +287,7 @@
                 (cond (:error id-token-unsign-result)
                       (redirect ((:login-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
                       :else
-                      (let [session-id (save-session! id_token access_token refresh_token expires_in refresh_expires_in)]
+                      (let [session-id (save-session! id_token access_token expires_in refresh_token refresh_expires_in)]
                         (-> (redirect ((:login-success-redirect-uri-fn config) client-base-uri authentication-state))
                             (assoc-in [:session :emissary/session-id] session-id))))))))))))
 
