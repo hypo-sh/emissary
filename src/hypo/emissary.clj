@@ -139,8 +139,6 @@
    (client/post token-uri
                 {:form-params
                  {"code" code
-                  #_#_
-                  "audience" "hypo-demo"
                   "redirect_uri" redirect-uri
                   "grant_type" "authorization_code"
                   "client_id" client-id}
@@ -214,8 +212,6 @@
                       {:form-params
                        {"refresh_token" refresh-token
                         "client_id" client-id
-                        #_#_
-                        "audience" "hypo-demo"
                         "grant_type" "refresh_token"}
                        :headers {"Content-Type" "application/x-www-form-urlencoded"}
                        :as :json})))
