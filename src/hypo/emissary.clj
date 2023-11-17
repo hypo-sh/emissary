@@ -163,13 +163,16 @@
   [config]
   (:keys config))
 
-(defn- unsign-jwt
-  [keys claims jwt]
+(defn unsign-jwt
+  [keys audience issuer jwt]
   (let [{:keys [alg _typ kid]} (jwt/decode-header jwt)
         key (find-key kid keys)
         pubkey (jwk/public-key key)]
     (try
-      (jwt/unsign jwt pubkey (merge {:alg alg} claims))
+      (jwt/unsign jwt pubkey
+                  {:alg alg
+                   :aud audience
+                   :iss issuer})
       (catch Exception e
         (let [error (ex-message e)]
           {:error "unsign_error"
@@ -192,24 +195,12 @@
           :else
           (throw (ex-info ":aud on jwt-aud must be a string or a collection but was neither" {})))))
 
-(defn unsign-access-token
-  [config token]
-  ;; NOTE: Access tokens don't necessarily include an :aud claim, so we don't validate that here.
-  (unsign-jwt
-   (get-jwks config)
-   (-> config
-       (select-keys [:issuer])
-       (rename-keys {:issuer :iss}))
-   token))
-
 (defn unsign-id-token
   [config token]
   (let [unsign-result
         (unsign-jwt (get-jwks config)
-                    (-> config
-                        (select-keys [:issuer :audience])
-                        (rename-keys {:issuer :iss
-                                      :audience :aud}))
+                    (:audience config)
+                    (:issuer config)
                     token)]
     (if (:error unsign-result)
       unsign-result
@@ -238,7 +229,7 @@
   "Constructs a ring handler that acts as an OIDC redirect URI.
 
   save-session! is a function taking the following arguments:
-  [id-token access-token refresh-token refresh-expires-in]
+  [id-token access-token expires-in refresh-token refresh-expires-in]
 
   The first three values are JWTs represented as strings. The last value
   is an optional integer representing the number of seconds until the
@@ -263,6 +254,7 @@
                 {:keys [access_token
                         refresh_token
                         id_token
+                        expires_in
                         refresh_expires_in
                         error
                         error_description
@@ -274,7 +266,7 @@
                 (cond (:error id-token-unsign-result)
                       (redirect ((:login-failure-redirect-uri-fn config) client-base-uri (:error id-token-unsign-result) (:error-description id-token-unsign-result) ""))
                       :else
-                      (let [session-id (save-session! id_token access_token refresh_token refresh_expires_in)]
+                      (let [session-id (save-session! id_token access_token expires_in refresh_token refresh_expires_in)]
                         (-> (redirect ((:login-success-redirect-uri-fn config) client-base-uri authentication-state))
                             (assoc-in [:session :emissary/session-id] session-id))))))))))))
 

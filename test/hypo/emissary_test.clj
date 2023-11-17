@@ -81,7 +81,7 @@
                        :aud refresh-token-aud
                        :exp refresh-token-exp})]
     (merge
-     {:save-session! (fn [_sid _id-token _access-token _refresh-token])
+     {:save-session! (fn [_id-token _access-token _expires-in _refresh-token _refresh-expires-in])
       :client-base-uri "https://hypo.app"
       :trusted-audiences #{"hypo"}
       :insecure-mode? false

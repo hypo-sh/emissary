@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [HEAD]
 
+## Changed
+
+- Changed arguments to `unsign-jwt`
+- Removed `unsign-access-token`
+- Changed arguments to `save-session!` callback
+
+## [b2eebe3321ededc59abea8be6989daa1bde63b09]
+
 ### Changed
 
 #### Config
