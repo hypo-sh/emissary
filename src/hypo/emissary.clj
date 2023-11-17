@@ -165,22 +165,7 @@
   [config]
   (:keys config))
 
-(defn- unsign-jwt
-  [keys claims jwt]
-  (let [{:keys [alg _typ kid]} (jwt/decode-header jwt)
-        key (find-key kid keys)
-        pubkey (jwk/public-key key)]
-    (try
-      (jwt/unsign jwt pubkey (merge {:alg alg} claims))
-      (catch Exception e
-        (let [error (ex-message e)]
-          {:error "unsign_error"
-           :error-description error})))))
-
-;; TODO: Come up with name for this
-;; Figure out where to put it
-;; Figure out how it relates to unsign-jwt above
-(defn unsign-jwt'
+(defn unsign-jwt
   [keys audience issuer jwt]
   (let [{:keys [alg _typ kid]} (jwt/decode-header jwt)
         key (find-key kid keys)
@@ -216,10 +201,8 @@
   [config token]
   (let [unsign-result
         (unsign-jwt (get-jwks config)
-                    (-> config
-                        (select-keys [:issuer :audience])
-                        (rename-keys {:issuer :iss
-                                      :audience :aud}))
+                    (:audience config)
+                    (:issuer config)
                     token)]
     (if (:error unsign-result)
       unsign-result
